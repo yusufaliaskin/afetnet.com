@@ -1,0 +1,29 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Outer Ring -->
+  <circle cx="512" cy="512" r="400" fill="none" stroke="#007AFF" stroke-width="12" opacity="0.3"/>
+  
+  <!-- Inner Ring -->
+  <circle cx="512" cy="512" r="300" fill="none" stroke="#007AFF" stroke-width="8" opacity="0.5"/>
+  
+  <!-- Center Circle -->
+  <circle cx="512" cy="512" r="200" fill="#007AFF" opacity="0.1"/>
+  
+  <!-- Seismograph Lines -->
+  <g transform="translate(512, 512)">
+    <!-- Horizontal Line -->
+    <line x1="-150" y1="0" x2="150" y2="0" stroke="#007AFF" stroke-width="6"/>
+    
+    <!-- Vertical Line -->
+    <line x1="0" y1="-150" x2="0" y2="150" stroke="#007AFF" stroke-width="6"/>
+    
+    <!-- Diagonal Lines -->
+    <line x1="-106" y1="-106" x2="106" y2="106" stroke="#007AFF" stroke-width="4" opacity="0.7"/>
+    <line x1="106" y1="-106" x2="-106" y2="106" stroke="#007AFF" stroke-width="4" opacity="0.7"/>
+  </g>
+  
+  <!-- Center Dot -->
+  <circle cx="512" cy="512" r="25" fill="#FF3B30"/>
+  
+  <!-- Text -->
+  <text x="512" y="750" text-anchor="middle" fill="#007AFF" font-family="Arial, sans-serif" font-size="80" font-weight="bold">A</text>
+</svg>
