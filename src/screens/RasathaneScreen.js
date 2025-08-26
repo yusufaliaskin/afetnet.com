@@ -330,7 +330,7 @@ const RasathaneScreen = () => {
         style={[
           styles.header, 
           { 
-            backgroundColor: theme.colors.primary,
+            backgroundColor: '#FF7F00',
             opacity: fadeAnim,
             transform: [{ translateY: slideAnim }]
           }
@@ -345,14 +345,11 @@ const RasathaneScreen = () => {
         <Text style={[styles.headerTitle, { color: theme.colors.onPrimary }]}>Rasathane</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity 
-            style={styles.calendarButton}
-            onPress={() => setIsDatePickerOpen(!isDatePickerOpen)}
-          >
-            <Ionicons name="calendar" size={24} color={theme.colors.onPrimary} />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={[styles.filterButton, isFilterPanelOpen && styles.filterButtonActive]}
-            onPress={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
+            style={[styles.filterButton, (isFilterPanelOpen || isDatePickerOpen) && styles.filterButtonActive]}
+            onPress={() => {
+              setIsFilterPanelOpen(!isFilterPanelOpen);
+              setIsDatePickerOpen(!isDatePickerOpen);
+            }}
           >
             <Ionicons name="options" size={24} color={theme.colors.onPrimary} />
             {(selectedFilter !== 'all' || selectedDate) && (
@@ -424,7 +421,6 @@ const RasathaneScreen = () => {
               style={[styles.dateOption, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, !selectedDate && { backgroundColor: theme.colors.primary }]}
               onPress={() => {
                 setSelectedDate(null);
-                setIsDatePickerOpen(false);
               }}
             >
               <Text style={[styles.dateOptionText, { color: theme.colors.text }, !selectedDate && { color: theme.colors.onPrimary }]}>Tüm Tarihler</Text>
@@ -434,7 +430,6 @@ const RasathaneScreen = () => {
               style={[styles.dateOption, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }, selectedDate && selectedDate.toDateString() === new Date().toDateString() && { backgroundColor: theme.colors.primary }]}
               onPress={() => {
                 setSelectedDate(new Date());
-                setIsDatePickerOpen(false);
               }}
             >
               <Text style={[styles.dateOptionText, { color: theme.colors.text }, selectedDate && selectedDate.toDateString() === new Date().toDateString() && { color: theme.colors.onPrimary }]}>Bugün</Text>
@@ -446,7 +441,6 @@ const RasathaneScreen = () => {
                 const yesterday = new Date();
                 yesterday.setDate(yesterday.getDate() - 1);
                 setSelectedDate(yesterday);
-                setIsDatePickerOpen(false);
               }}
             >
               <Text style={[styles.dateOptionText, { color: theme.colors.text }]}>Dün</Text>
@@ -458,7 +452,6 @@ const RasathaneScreen = () => {
                 const lastWeek = new Date();
                 lastWeek.setDate(lastWeek.getDate() - 7);
                 setSelectedDate(lastWeek);
-                setIsDatePickerOpen(false);
               }}
             >
               <Text style={[styles.dateOptionText, { color: theme.colors.text }]}>Son 7 Gün</Text>
@@ -795,20 +788,20 @@ const createStyles = (theme) => StyleSheet.create({
     paddingHorizontal: 16,
   },
   earthquakeCard: {
-    backgroundColor: '#FEFEFE',
-    borderRadius: 16,
-    padding: 0,
-    marginBottom: 16,
-    shadowColor: '#000',
+    backgroundColor: theme.colors.cardBackground,
+    marginHorizontal: 12,
+    marginVertical: 8,
+    borderRadius: 14,
+    shadowColor: theme.colors.shadow,
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 2,
     },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 3,
     borderWidth: 1,
-    borderColor: '#F0F0F0',
+    borderColor: theme.colors.border,
     overflow: 'hidden',
   },
   cardContent: {
@@ -826,50 +819,50 @@ const createStyles = (theme) => StyleSheet.create({
     flex: 1,
   },
   magnitudeCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 16,
+    marginRight: 18,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 3,
+      height: 2,
     },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 5,
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   magnitudeText: {
-    fontSize: 20,
-    fontWeight: '800',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#FFFFFF',
-    letterSpacing: 0.3,
+    letterSpacing: 0.1,
   },
   cardInfo: {
     flex: 1,
   },
   locationText: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     color: theme.colors.text,
     marginBottom: 4,
-    lineHeight: 22,
-    letterSpacing: 0.2,
+    lineHeight: 20,
+    letterSpacing: 0.1,
   },
   locationSubtext: {
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: '500',
     color: theme.colors.textSecondary,
-    marginBottom: 12,
-    letterSpacing: 0.1,
+    marginBottom: 8,
+    letterSpacing: 0.05,
   },
   cardDetails: {
     flexDirection: 'row',
     alignItems: 'center',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 12,
   },
   detailItem: {
     flexDirection: 'row',
@@ -877,7 +870,7 @@ const createStyles = (theme) => StyleSheet.create({
     gap: 4,
   },
   detailText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '500',
     color: theme.colors.textSecondary,
   },
@@ -897,27 +890,27 @@ const createStyles = (theme) => StyleSheet.create({
     fontWeight: '600',
   },
   compactFilterPanel: {
-    backgroundColor: '#FEFEFE',
+    backgroundColor: theme.colors.cardBackground,
     marginHorizontal: 16,
-    marginBottom: 12,
-    borderRadius: 16,
-    padding: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    padding: 12,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 3,
+      height: 2,
     },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
-    borderWidth: 1,
-    borderColor: '#F0F0F0',
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+    borderWidth: 0.5,
+    borderColor: '#E8E8E8',
   },
   compactFilterHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   compactFilterTitle: {
     fontSize: 14,
@@ -934,7 +927,7 @@ const createStyles = (theme) => StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     color: theme.colors.textSecondary,
-    marginBottom: 6,
+    marginBottom: 4,
   },
   compactChipContainer: {
     flexDirection: 'row',
@@ -943,9 +936,9 @@ const createStyles = (theme) => StyleSheet.create({
   },
   compactFilterChip: {
     backgroundColor: '#F8F9FA',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#F0F0F0',
     shadowColor: '#000',
@@ -1095,19 +1088,17 @@ const createStyles = (theme) => StyleSheet.create({
     letterSpacing: 0.3,
   },
   aftershockCard: {
-    borderLeftWidth: 5,
-    borderLeftColor: '#FF9500',
-    backgroundColor: 'rgba(255, 149, 0, 0.04)',
+    backgroundColor: theme.colors.cardBackground,
     borderWidth: 1,
-    borderColor: '#F0F0F0',
-    shadowColor: '#FF9500',
+    borderColor: theme.colors.border,
+    shadowColor: theme.colors.shadow,
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 1,
     },
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    elevation: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   aftershockLabel: {
     fontSize: 12,
@@ -1160,24 +1151,34 @@ const createStyles = (theme) => StyleSheet.create({
     borderRadius: 8,
   },
   datePickerPanel: {
-    paddingVertical: 16,
-    paddingHorizontal: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#F0F0F0',
     backgroundColor: '#FEFEFE',
     marginHorizontal: 16,
     borderRadius: 12,
     marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 3,
+    borderWidth: 0.5,
+    borderColor: '#E8E8E8',
   },
   datePickerHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 6,
   },
   datePickerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 14,
+    fontWeight: '600',
     color: theme.colors.text,
   },
   datePickerCloseButton: {
@@ -1189,18 +1190,26 @@ const createStyles = (theme) => StyleSheet.create({
     gap: 8,
   },
   dateOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 14,
     borderWidth: 1,
     borderColor: '#F0F0F0',
     backgroundColor: '#FEFEFE',
-    marginRight: 8,
-    marginBottom: 8,
+    marginRight: 6,
+    marginBottom: 6,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   dateOptionText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 11,
+    fontWeight: '500',
     color: theme.colors.text,
   },
   selectedDateInfo: {
@@ -1218,22 +1227,23 @@ const createStyles = (theme) => StyleSheet.create({
   loadMoreContainer: {
     paddingVertical: 20,
     paddingHorizontal: 16,
+    paddingBottom: 100,
     alignItems: 'center',
   },
   loadMoreButton: {
     backgroundColor: '#007AFF',
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 12,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 10,
     shadowColor: '#007AFF',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 2,
     },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-    minWidth: 160,
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+    minWidth: 150,
     alignItems: 'center',
     justifyContent: 'center',
   },

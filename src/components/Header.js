@@ -105,7 +105,7 @@ const Header = ({
     <View style={[
       styles.header, 
       { 
-        backgroundColor: theme.colors.cardBackground, 
+        backgroundColor: theme.colors.background, 
         borderBottomColor: theme.colors.border 
       }
     ]}>
@@ -123,6 +123,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   headerLeft: {
     flexDirection: 'row',

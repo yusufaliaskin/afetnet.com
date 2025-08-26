@@ -9,6 +9,7 @@ import {
   Platform,
   ActivityIndicator,
   Alert,
+  Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,32 +18,52 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
 import earthquakeService from '../services/earthquakeService';
 
-// Web için Leaflet import'ları - sadece web platformunda
-let MapContainer, TileLayer, Marker, Popup, L;
-if (Platform.OS === 'web') {
-  const leaflet = require('react-leaflet');
-  MapContainer = leaflet.MapContainer;
-  TileLayer = leaflet.TileLayer;
-  Marker = leaflet.Marker;
-  Popup = leaflet.Popup;
-  L = require('leaflet');
-  
-  // CSS'i dinamik olarak yükle
-  if (typeof document !== 'undefined') {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://unpkg.com/leaflet@1.7.1/dist/leaflet.css';
-    document.head.appendChild(link);
+// React Native Maps - sadece mobil platformlar için
+let MapView, Marker, PROVIDER_GOOGLE;
+if (Platform.OS === 'android' || Platform.OS === 'ios') {
+  try {
+    const maps = require('react-native-maps');
+    MapView = maps.default;
+    Marker = maps.Marker;
+    PROVIDER_GOOGLE = maps.PROVIDER_GOOGLE;
+    console.log('React Native Maps loaded successfully for mobile');
+  } catch (error) {
+    console.log('React Native Maps not available:', error);
   }
-  
-  // Leaflet marker icon'larını düzelt
-  if (L && L.Icon && L.Icon.Default) {
-    delete L.Icon.Default.prototype._getIconUrl;
-    L.Icon.Default.mergeOptions({
-      iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
-      iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-      shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
-    });
+}
+
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+// Web için Leaflet import'ları - sadece web platformunda
+let MapContainer, TileLayer, LeafletMarker, Popup, L;
+if (Platform.OS === 'web') {
+  try {
+    const leaflet = require('react-leaflet');
+    MapContainer = leaflet.MapContainer;
+    TileLayer = leaflet.TileLayer;
+    LeafletMarker = leaflet.Marker;
+    Popup = leaflet.Popup;
+    L = require('leaflet');
+    
+    // CSS'i dinamik olarak yükle
+    if (typeof document !== 'undefined') {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.7.1/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+    
+    // Leaflet marker icon'larını düzelt
+    if (L && L.Icon && L.Icon.Default) {
+      delete L.Icon.Default.prototype._getIconUrl;
+      L.Icon.Default.mergeOptions({
+        iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+        iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+      });
+    }
+  } catch (error) {
+    console.log('Leaflet not available:', error);
   }
 }
 
@@ -66,40 +87,85 @@ const EarthquakeDetailScreen = () => {
 
 
   const renderMap = () => {
-    if (Platform.OS === 'web' && MapContainer) {
-      return (
-        <MapContainer
-          center={mapCenter}
-          zoom={10}
-          style={{ height: '100%', width: '100%' }}
-        >
-          <TileLayer
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-            attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          />
-          {earthquake.latitude && earthquake.longitude && (
-            <Marker position={[earthquake.latitude, earthquake.longitude]}>
-              <Popup>
-                <div>
-                  <strong>{earthquake.magnitude} Büyüklüğünde Deprem</strong><br/>
-                  {earthquake.location}<br/>
-                  Derinlik: {earthquake.depth} km
-                </div>
-              </Popup>
-            </Marker>
-          )}
-        </MapContainer>
-      );
+    if (Platform.OS === 'web') {
+      if (MapContainer) {
+        return (
+          <MapContainer
+            center={mapCenter}
+            zoom={10}
+            style={{ height: '100%', width: '100%' }}
+          >
+            <TileLayer
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            />
+            {earthquake.latitude && earthquake.longitude && (
+              <LeafletMarker position={[earthquake.latitude, earthquake.longitude]}>
+                <Popup>
+                  <div>
+                    <strong>{earthquake.magnitude} Büyüklüğünde Deprem</strong><br/>
+                    {earthquake.location}<br/>
+                    Derinlik: {earthquake.depth} km
+                  </div>
+                </Popup>
+              </LeafletMarker>
+            )}
+          </MapContainer>
+        );
+      } else {
+        return (
+          <View style={styles.mapPlaceholder}>
+            <Ionicons name="map-outline" size={64} color={theme.colors.secondaryText} />
+            <Text style={[styles.mapPlaceholderText, { color: theme.colors.secondaryText }]}>
+              Harita yükleniyor...
+            </Text>
+          </View>
+        );
+      }
     } else {
-      // Mobile için placeholder
-      return (
-        <View style={styles.mapPlaceholder}>
-          <Ionicons name="map-outline" size={64} color={theme.colors.secondaryText} />
-          <Text style={[styles.mapPlaceholderText, { color: theme.colors.secondaryText }]}>
-            Deprem konumu haritası
-          </Text>
-        </View>
-      );
+      // Mobile için React Native Maps
+      if (MapView && Marker && earthquake.latitude && earthquake.longitude) {
+        console.log('Rendering React Native Maps for mobile');
+        return (
+          <MapView
+            style={styles.map}
+            provider={PROVIDER_GOOGLE}
+            initialRegion={{
+              latitude: earthquake.latitude,
+              longitude: earthquake.longitude,
+              latitudeDelta: 0.5,
+              longitudeDelta: 0.5,
+            }}
+            showsUserLocation={false}
+            showsMyLocationButton={false}
+            zoomEnabled={true}
+            scrollEnabled={true}
+          >
+            <Marker
+              coordinate={{
+                latitude: earthquake.latitude,
+                longitude: earthquake.longitude,
+              }}
+              title={`${earthquake.magnitude} Büyüklüğünde Deprem`}
+              description={`${earthquake.location} - Derinlik: ${earthquake.depth} km`}
+              pinColor={getSeverityColor(earthquake.magnitude)}
+            />
+          </MapView>
+        );
+      } else {
+        console.log('MapView not available for mobile platform');
+        return (
+          <View style={styles.mapPlaceholder}>
+            <Ionicons name="map-outline" size={64} color={theme.colors.secondaryText} />
+            <Text style={[styles.mapPlaceholderText, { color: theme.colors.secondaryText }]}>
+              {Platform.OS === 'android' || Platform.OS === 'ios' ? 
+                'Harita yükleniyor...' : 
+                'Deprem konumu haritası'
+              }
+            </Text>
+          </View>
+        );
+      }
     }
   };
 
@@ -140,6 +206,14 @@ const EarthquakeDetailScreen = () => {
         </View>
 
 
+
+        {/* Magnitude Badge */}
+        <View style={styles.magnitudeBadgeContainer}>
+          <View style={[styles.magnitudeBadge, { backgroundColor: getSeverityColor(earthquake.magnitude) }]}>
+            <Text style={styles.magnitudeBadgeText}>{earthquake.magnitude}</Text>
+            <Text style={styles.magnitudeBadgeLabel}>BÜYÜKLÜK</Text>
+          </View>
+        </View>
 
         {/* Earthquake Details Card */}
         <View style={[styles.detailsCard, { backgroundColor: theme.colors.cardBackground }]}>
@@ -234,54 +308,80 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   mapSection: {
-    height: 300,
+    height: screenHeight * 0.4, // Ekran yüksekliğinin %40'ı
+    minHeight: 250,
+    maxHeight: 400,
     position: 'relative',
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 6,
   },
   mapContainer: {
     flex: 1,
-    borderRadius: 0,
+    borderRadius: 16,
     overflow: 'hidden',
+  },
+  map: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
   },
   mapPlaceholder: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f0f0f0',
+    backgroundColor: '#f5f5f5',
+    borderRadius: 16,
   },
   mapPlaceholderText: {
     marginTop: 16,
     fontSize: 16,
     textAlign: 'center',
+    fontWeight: '500',
   },
 
   detailsCard: {
-    marginHorizontal: 20,
+    marginHorizontal: 16,
+    marginTop: 20,
     marginBottom: 20,
-    borderRadius: 16,
-    padding: 20,
+    borderRadius: 20,
+    padding: 24,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 3,
+      height: 6,
     },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 8,
   },
   cardHeader: {
-    marginBottom: 20,
+    marginBottom: 24,
+    alignItems: 'center',
   },
   locationTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 4,
+    fontSize: screenWidth > 400 ? 26 : 22,
+    fontWeight: '800',
+    marginBottom: 6,
+    textAlign: 'center',
+    lineHeight: screenWidth > 400 ? 32 : 28,
   },
   locationSubtitle: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
+    opacity: 0.7,
   },
   detailsGrid: {
-    gap: 16,
+    gap: 20,
   },
   detailRow: {
     flexDirection: 'row',
@@ -291,17 +391,66 @@ const styles = StyleSheet.create({
   detailItem: {
     flex: 1,
     alignItems: 'center',
-    gap: 8,
+    gap: 10,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+    padding: 16,
+    borderRadius: 12,
+    minHeight: 80,
+    justifyContent: 'center',
   },
   detailLabel: {
-    fontSize: 12,
-    fontWeight: '500',
+    fontSize: 11,
+    fontWeight: '600',
     textAlign: 'center',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    opacity: 0.6,
   },
   detailValue: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: screenWidth > 400 ? 18 : 16,
+    fontWeight: '800',
     textAlign: 'center',
+  },
+  magnitudeBadgeContainer: {
+    alignItems: 'center',
+    marginTop: -30,
+    marginBottom: 10,
+    zIndex: 10,
+  },
+  magnitudeBadge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+    borderWidth: 4,
+    borderColor: '#fff',
+  },
+  magnitudeBadgeText: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  magnitudeBadgeLabel: {
+    fontSize: 8,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.5,
+    marginTop: 2,
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
   },
 });
 

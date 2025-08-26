@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import StatusBar from '../components/StatusBar';
 
 const NotificationsScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -122,27 +123,7 @@ const NotificationsScreen = ({ navigation }) => {
       flex: 1,
       backgroundColor: theme.colors.background,
     },
-    header: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      paddingHorizontal: 16,
-      paddingVertical: 12,
-      backgroundColor: theme.colors.background,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-    },
-    backButton: {
-      padding: 8,
-    },
-    headerTitle: {
-      fontSize: 18,
-      fontWeight: '600',
-      color: theme.colors.text,
-    },
-    menuButton: {
-      padding: 8,
-    },
+
     tabContainer: {
       flexDirection: 'row',
       paddingHorizontal: 16,
@@ -242,23 +223,13 @@ const NotificationsScreen = ({ navigation }) => {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-        
-        <Text style={styles.headerTitle}>
-          {language === 'tr' ? 'Bildirimler' : 'Notification'}
-        </Text>
-        
-        <TouchableOpacity style={styles.menuButton}>
-          <Ionicons name="ellipsis-horizontal" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
-      </View>
+      <StatusBar 
+        title={language === 'tr' ? 'Bildirimler' : 'Notification'}
+        showSearch={false}
+        showNotifications={false}
+        showBack={true}
+        onBackPress={() => navigation.goBack()}
+      />
 
       {/* Tab Menu */}
       <View style={styles.tabContainer}>

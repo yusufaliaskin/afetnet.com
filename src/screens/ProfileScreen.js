@@ -17,15 +17,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import { LinearGradient } from 'expo-linear-gradient';
 // import * as ImagePicker from 'expo-image-picker'; // Temporarily commented out
-import Header from '../components/Header';
+import StatusBar from '../components/StatusBar';
+import { supabase } from '../lib/supabase';
 
 const ProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const { width: screenWidth } = Dimensions.get('window');
   const { t } = useLanguage();
   const { theme } = useTheme();
+  const { user, logout, updateUserProfile } = useAuth();
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -39,23 +42,31 @@ const ProfileScreen = ({ navigation }) => {
   
   // User profile state
   const [userProfile, setUserProfile] = useState({
-    firstName: 'Yusuf Ali',
-    lastName: 'Aşkın',
-    email: 'yusuf.ali@example.com',
-    phone: '+90 532 123 45 67',
-    location: 'İstanbul, Türkiye',
-    profileImage: null,
-    isVerified: true,
-    emergencyContact: '+90 532 987 65 43'
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+    email: user?.email || '',
+    phone: user?.phone || '',
+    location: user?.location || '',
+    profileImage: user?.profileImage || null,
+    isVerified: user?.isVerified || false,
+    emergencyContact: user?.emergencyContact || ''
   });
   
   // Modal states
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
+  const [showEditMemberModal, setShowEditMemberModal] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
+  const [isSearchVisible, setIsSearchVisible] = useState(false);
   
   // Form states
-  const [profileForm, setProfileForm] = useState({ ...userProfile });
+  const [profileForm, setProfileForm] = useState({ 
+    ...userProfile,
+    age: user?.age || '',
+    occupation: user?.occupation || '',
+    bloodType: user?.bloodType || '',
+    healthInfo: user?.healthInfo || ''
+  });
   const [memberForm, setMemberForm] = useState({
     name: '',
     surname: '',
@@ -92,50 +103,147 @@ const ProfileScreen = ({ navigation }) => {
   useEffect(() => {
     startAnimations();
   }, [showAllMembers, theme.isDarkMode]);
-  
-  const [familyMembers, setFamilyMembers] = useState([
-    {
-      id: 1,
-      name: 'Emine Aşkın',
-      relation: 'Eş',
-      phone: '+90 532 111 22 33',
-      status: 'Güvenli',
-      lastSeen: '2 dakika önce',
-      initial: 'E',
-      statusColor: '#34C759',
-      emergencyContact: true
-    },
-    {
-      id: 2,
-      name: 'Ali Aşkın',
-      relation: 'Oğul',
-      phone: '+90 533 444 55 66',
-      status: 'Güvenli',
-      lastSeen: '5 dakika önce',
-      initial: 'A',
-      statusColor: '#34C759',
-      emergencyContact: false
-    },
-    {
-      id: 3,
-      name: 'Fatma Aşkın',
-      relation: 'Kız',
-      phone: '+90 534 777 88 99',
-      status: 'Bilinmiyor',
-      lastSeen: '1 saat önce',
-      initial: 'F',
-      statusColor: '#FF9500',
-      emergencyContact: false
+
+  // Kullanıcı profil bilgilerini Supabase'den çek
+  const loadUserProfile = async () => {
+    if (!user?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      if (data) {
+        // E-posta doğrulama durumunu kontrol et
+        const emailVerified = user?.email_confirmed_at ? true : false;
+        
+        setUserProfile({
+          firstName: data.first_name || user.firstName || '',
+          lastName: data.last_name || user.lastName || '',
+          email: data.email || user.email || '',
+          phone: data.phone || user.phone || '',
+          location: data.location || '',
+          profileImage: data.avatar_url || null,
+          isVerified: emailVerified,
+          emergencyContact: data.phone || ''
+        });
+        
+        setProfileForm({
+          firstName: data.first_name || user.firstName || '',
+          lastName: data.last_name || user.lastName || '',
+          email: data.email || user.email || '',
+          phone: data.phone || user.phone || '',
+          location: data.location || '',
+          profileImage: data.avatar_url || null,
+          emergencyContact: data.phone || '',
+          age: '',
+          occupation: '',
+          bloodType: '',
+          healthInfo: ''
+        });
+      }
+    } catch (error) {
+      console.error('Kullanıcı profili yüklenirken hata:', error);
+      // Hata durumunda mevcut user bilgilerini kullan
+      if (user) {
+        setUserProfile({
+          firstName: user.firstName || '',
+          lastName: user.lastName || '',
+          email: user.email || '',
+          phone: user.phone || '',
+          location: user.location || '',
+          profileImage: user.profileImage || null,
+          isVerified: user.isVerified || false,
+          emergencyContact: user.emergencyContact || ''
+        });
+      }
     }
-  ]);
+  };
+
+  // Kullanıcı bilgilerini güncelle
+  useEffect(() => {
+    loadUserProfile();
+  }, [user]);
+
+  // Aile üyelerini yükle
+  const loadFamilyMembers = async () => {
+    if (!user?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('family_members')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      const formattedMembers = data.map(member => ({
+        id: member.id,
+        name: `${member.first_name} ${member.last_name}`,
+        relation: member.relation,
+        phone: member.phone,
+        status: member.status || 'Bilinmiyor',
+        lastSeen: member.last_seen || 'Henüz bağlanmadı',
+        initial: member.first_name.charAt(0).toUpperCase(),
+        statusColor: member.status === 'Güvenli' ? '#34C759' : member.status === 'Tehlikede' ? '#FF3B30' : '#FF9500',
+        emergencyContact: member.emergency_contact || false
+      }));
+
+      setFamilyMembers(formattedMembers);
+    } catch (error) {
+      console.error('Aile üyeleri yüklenirken hata:', error);
+      setFamilyMembers([]);
+    }
+  };
+
+  // Kullanıcı değiştiğinde aile üyelerini yükle
+  useEffect(() => {
+    loadFamilyMembers();
+  }, [user]);
+  
+  const [familyMembers, setFamilyMembers] = useState([]);
   
   const [showAllMembers, setShowAllMembers] = useState(false);
   
   // Profile image picker
   const pickImage = async () => {
-    // Temporarily disabled - expo-image-picker not installed
-    Alert.alert('Bilgi', 'Fotoğraf seçme özelliği geçici olarak devre dışı.');
+    try {
+      Alert.alert(
+        'Profil Fotoğrafı',
+        'Fotoğraf seçme özelliği yakında aktif olacak. Şu anda bu özellik geliştirme aşamasındadır.',
+        [
+          {
+            text: 'Tamam',
+            style: 'default',
+          },
+          {
+            text: 'Bilgi Al',
+            onPress: () => {
+              Alert.alert(
+                'Geliştirme Bilgisi',
+                'Bu özellik için expo-image-picker kütüphanesi kurulması gerekiyor. Yakında eklenecek!',
+                [{ text: 'Anladım', style: 'default' }]
+              );
+            },
+          },
+        ],
+        { cancelable: true }
+      );
+    } catch (error) {
+      console.error('Error in pickImage:', error);
+      Alert.alert('Hata', 'Bir hata oluştu.');
+    }
     /*
+    // Future implementation with expo-image-picker
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('İzin Gerekli', 'Fotoğraf seçmek için galeri erişim izni gereklidir.');
@@ -161,15 +269,61 @@ const ProfileScreen = ({ navigation }) => {
     setShowEditProfile(true);
   };
 
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
     if (!profileForm.firstName.trim() || !profileForm.lastName.trim()) {
       Alert.alert('Hata', 'Ad ve soyad alanları zorunludur.');
       return;
     }
-    
-    setUserProfile({ ...profileForm });
-    setShowEditProfile(false);
-    Alert.alert('Başarılı', 'Profil bilgileriniz güncellendi.');
+
+    // E-posta format kontrolü
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(profileForm.email)) {
+      Alert.alert('Hata', 'Geçerli bir e-posta adresi giriniz.');
+      return;
+    }
+
+    // Telefon format kontrolü - daha esnek format
+    if (profileForm.phone) {
+      const phoneRegex = /^(\+90|0)?\s?[5-9][0-9]{2}\s?[0-9]{3}\s?[0-9]{2}\s?[0-9]{2}$/;
+      const cleanPhone = profileForm.phone.replace(/\s/g, ''); // Boşlukları temizle
+      
+      if (!phoneRegex.test(profileForm.phone) && cleanPhone.length < 10) {
+        Alert.alert('Hata', 'Geçerli bir telefon numarası giriniz. (5XX XXX XX XX veya +90 5XX XXX XX XX)');
+        return;
+      }
+    }
+
+    try {
+      // Supabase'de profil güncelle
+      const { data, error } = await supabase
+        .from('users')
+        .update({
+          full_name: `${profileForm.firstName} ${profileForm.lastName}`.trim(),
+          email: profileForm.email,
+          phone: profileForm.phone,
+          avatar_url: profileForm.profileImage,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id)
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      // Local state'i güncelle
+      setUserProfile({ ...profileForm });
+      setShowEditProfile(false);
+      Alert.alert('Başarılı', 'Profil bilgileriniz güncellendi.');
+      
+      // Profil bilgilerini yeniden yükle
+      await loadUserProfile();
+      
+    } catch (error) {
+      console.error('Profil güncelleme hatası:', error);
+      Alert.alert('Hata', 'Profil güncellenirken bir hata oluştu.');
+    }
   };
 
   // Family member management functions
@@ -186,9 +340,10 @@ const ProfileScreen = ({ navigation }) => {
   };
 
   const handleEditMember = (member) => {
+    const [firstName, ...lastNameParts] = member.name.split(' ');
     setMemberForm({
-      name: member.name,
-      surname: member.surname || '',
+      name: firstName,
+      surname: lastNameParts.join(' ') || '',
       relation: member.relation,
       phone: member.phone,
       emergencyContact: member.emergencyContact || false
@@ -197,53 +352,85 @@ const ProfileScreen = ({ navigation }) => {
     setShowAddMember(true);
   };
 
-  const handleSaveMember = () => {
-    if (!memberForm.name.trim() || !memberForm.surname.trim() || !memberForm.relation.trim() || !memberForm.phone.trim()) {
-      Alert.alert('Hata', 'Tüm alanlar zorunludur.');
+  const handleSaveMember = async () => {
+    if (!memberForm.name.trim() || !memberForm.surname.trim()) {
+      Alert.alert('Hata', 'Ad ve soyad alanları zorunludur.');
       return;
     }
 
-    const phoneRegex = /^\+90\s?[0-9]{3}\s?[0-9]{3}\s?[0-9]{2}\s?[0-9]{2}$/;
+    if (!memberForm.relation.trim()) {
+      Alert.alert('Hata', 'Yakınlık derecesi zorunludur.');
+      return;
+    }
+
+    if (!memberForm.phone.trim()) {
+      Alert.alert('Hata', 'Telefon numarası zorunludur.');
+      return;
+    }
+
+    // Telefon format kontrolü
+    const phoneRegex = /^(\+90|0)?\s?[5-9][0-9]{2}\s?[0-9]{3}\s?[0-9]{2}\s?[0-9]{2}$/;
     if (!phoneRegex.test(memberForm.phone)) {
-      Alert.alert('Hata', 'Geçerli bir telefon numarası giriniz. (+90 5XX XXX XX XX)');
+      Alert.alert('Hata', 'Geçerli bir telefon numarası giriniz. (5XX XXX XX XX)');
       return;
     }
 
-    if (editingMember) {
-      // Update existing member
-      setFamilyMembers(prev => prev.map(member => 
-        member.id === editingMember.id 
-          ? {
-              ...member,
-              name: memberForm.name,
-              surname: memberForm.surname,
-              relation: memberForm.relation,
-              phone: memberForm.phone,
-              emergencyContact: memberForm.emergencyContact,
-              initial: memberForm.name.charAt(0).toUpperCase()
-            }
-          : member
-      ));
-      Alert.alert('Başarılı', 'Aile üyesi bilgileri güncellendi.');
-    } else {
-      // Add new member
-      const newMember = {
-        id: Date.now(),
-        name: memberForm.name,
-        surname: memberForm.surname,
-        relation: memberForm.relation,
-        phone: memberForm.phone,
-        status: 'Bilinmiyor',
-        lastSeen: 'Henüz bağlanmadı',
-        initial: memberForm.name.charAt(0).toUpperCase(),
-        statusColor: '#8E8E93',
-        emergencyContact: memberForm.emergencyContact
-      };
-      setFamilyMembers(prev => [...prev, newMember]);
-      Alert.alert('Başarılı', 'Yeni aile üyesi eklendi.');
+    try {
+      if (editingMember) {
+        // Mevcut üyeyi güncelle
+        const { error } = await supabase
+          .from('family_members')
+          .update({
+            first_name: memberForm.name.trim(),
+            last_name: memberForm.surname.trim(),
+            relation: memberForm.relation.trim(),
+            phone: memberForm.phone.trim(),
+            emergency_contact: memberForm.emergencyContact,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', editingMember.id);
+
+        if (error) {
+          throw error;
+        }
+
+        Alert.alert('Başarılı', 'Aile üyesi bilgileri güncellendi.');
+      } else {
+        // Yeni üye ekle
+        const { error } = await supabase
+          .from('family_members')
+          .insert({
+            user_id: user.id,
+            first_name: memberForm.name.trim(),
+            last_name: memberForm.surname.trim(),
+            relation: memberForm.relation.trim(),
+            phone: memberForm.phone.trim(),
+            emergency_contact: memberForm.emergencyContact,
+            status: 'Bilinmiyor'
+          });
+
+        if (error) {
+          throw error;
+        }
+
+        Alert.alert('Başarılı', 'Yeni aile üyesi eklendi.');
+      }
+
+      // Aile üyelerini yeniden yükle
+      await loadFamilyMembers();
+      setShowAddMember(false);
+      setEditingMember(null);
+      setMemberForm({
+        name: '',
+        surname: '',
+        relation: '',
+        phone: '',
+        emergencyContact: false
+      });
+    } catch (error) {
+      console.error('Aile üyesi kaydetme hatası:', error);
+      Alert.alert('Hata', 'Aile üyesi kaydedilirken bir hata oluştu.');
     }
-    
-    setShowAddMember(false);
   };
 
   const handleEmergencyReport = () => {
@@ -287,83 +474,130 @@ const ProfileScreen = ({ navigation }) => {
         { 
           text: 'Sil', 
           style: 'destructive', 
-          onPress: () => {
-            setFamilyMembers(prev => prev.filter(member => member.id !== memberId));
-            Alert.alert('Başarılı', 'Aile üyesi silindi.');
+          onPress: async () => {
+            try {
+              const { error } = await supabase
+                .from('family_members')
+                .delete()
+                .eq('id', memberId);
+
+              if (error) {
+                throw error;
+              }
+
+              // Aile üyelerini yeniden yükle
+              await loadFamilyMembers();
+              Alert.alert('Başarılı', 'Aile üyesi silindi.');
+            } catch (error) {
+              console.error('Aile üyesi silme hatası:', error);
+              Alert.alert('Hata', 'Aile üyesi silinirken bir hata oluştu.');
+            }
           }
         }
       ]
     );
   };
+
+  const handleEmailVerification = async () => {
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email: user?.email
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      Alert.alert(
+        'Doğrulama E-postası Gönderildi',
+        'E-posta adresinize doğrulama linki gönderildi. Lütfen e-postanızı kontrol edin ve doğrulama linkine tıklayın.',
+        [{ text: 'Tamam' }]
+      );
+    } catch (error) {
+      console.error('E-posta doğrulama hatası:', error);
+      Alert.alert(
+        'Hata',
+        'Doğrulama e-postası gönderilirken bir hata oluştu. Lütfen daha sonra tekrar deneyin.',
+        [{ text: 'Tamam' }]
+      );
+    }
+  };
   
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <View style={[styles.header, { backgroundColor: theme.colors.background, borderBottomColor: theme.colors.border }]}>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          afetnet.com
-        </Text>
-        <View style={styles.headerIcons}>
-          <TouchableOpacity 
-            style={styles.headerIcon}
-            onPress={() => navigation.navigate('Notifications')}
-          >
-            <Ionicons name="notifications-outline" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <StatusBar 
+        title="Afetnet.com"
+        showSearch={false}
+        showNotifications={true}
+        onNotificationPress={() => navigation.navigate('Notifications')}
+      />
       
       <ScrollView style={[styles.scrollView, { backgroundColor: theme.colors.background }]} showsVerticalScrollIndicator={false}>
         {/* User Profile Card */}
         <Animated.View 
           style={[
-            styles.profileCard,
+            styles.modernProfileCard,
+            { backgroundColor: theme.colors.cardBackground },
             {
               opacity: fadeAnim,
               transform: [{ translateY: slideAnim }, { scale: scaleAnim }]
             }
           ]}
         >
-          <LinearGradient
-            colors={['#667eea', '#764ba2']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.gradientBackground}
+          {/* Edit Icon Button - Top Right */}
+          <TouchableOpacity 
+            style={[styles.editIconButton, { backgroundColor: theme.colors.primary }]} 
+            onPress={() => setShowEditProfile(true)}
           >
-          <View style={styles.centeredProfileContent}>
-            <View style={styles.avatarContainer}>
-              <TouchableOpacity style={styles.avatar} onPress={handleEditProfile}>
+            <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
+          
+          {/* Profile Content */}
+          <View style={styles.profileContent}>
+            {/* Profile Image */}
+            <View style={styles.profileImageSection}>
+              <View style={[styles.profileImageWrapper, { borderColor: theme.colors.primary }]}>
                 {userProfile.profileImage ? (
-                  <Image source={{ uri: userProfile.profileImage }} style={styles.profileImage} />
+                  <Image source={{ uri: userProfile.profileImage }} style={styles.profileImageLarge} />
                 ) : (
-                  <Ionicons name="person" size={32} color="#007AFF" />
+                  <View style={[styles.profileImagePlaceholder, { backgroundColor: theme.colors.surface }]}>
+                    <Ionicons name="person" size={50} color={theme.colors.primary} />
+                  </View>
                 )}
-              </TouchableOpacity>
-              <View style={[styles.statusBadge, { backgroundColor: userProfile.isVerified ? '#34C759' : '#FF9500' }]}>
-                <Text style={styles.statusText}>{userProfile.isVerified ? 'Doğrulanmış' : 'Doğrulanmamış'}</Text>
               </View>
             </View>
             
-            <Text style={[styles.userName, { color: '#FFFFFF' }]}>{userProfile.firstName} {userProfile.lastName}</Text>
-            <Text style={[styles.userLocation, { color: '#E8E8E8' }]}>📍 {userProfile.location}</Text>
-            
-            {/* Stats */}
-            <View style={styles.statsContainer}>
-              <View style={styles.statItem}>
-                <Text style={[styles.statNumber, { color: '#FFFFFF' }]}>{userStats.totalShares}</Text>
-                <Text style={[styles.statLabel, { color: '#E8E8E8' }]}>{t('totalShares')}</Text>
-              </View>
-              <View style={styles.statItem}>
-                <Text style={[styles.statNumber, { color: '#FFFFFF' }]}>{userStats.familyMembers}</Text>
-                <Text style={[styles.statLabel, { color: '#E8E8E8' }]}>{t('familyMembers')}</Text>
+            {/* User Info */}
+            <View style={styles.userInfoMain}>
+              <Text style={[styles.userFullName, { color: theme.colors.text }]}>
+                {userProfile.firstName} {userProfile.lastName}
+              </Text>
+              
+              {/* User Email */}
+              <Text style={[styles.userEmail, { color: theme.colors.secondaryText }]}>
+                {userProfile.email || user?.email}
+              </Text>
+              
+              {/* Verification Status */}
+              <View style={[styles.verificationBadge, {
+                backgroundColor: userProfile.isVerified 
+                  ? 'rgba(52, 199, 89, 0.15)' 
+                  : 'rgba(255, 149, 0, 0.15)'
+              }]}>
+                <Ionicons 
+                  name={userProfile.isVerified ? "checkmark-circle" : "alert-circle"} 
+                  size={16} 
+                  color={userProfile.isVerified ? "#34C759" : "#FF9500"} 
+                />
+                <Text style={[styles.verificationText, { 
+                  color: userProfile.isVerified ? "#34C759" : "#FF9500" 
+                }]}>
+                  {userProfile.isVerified ? 'Doğrulanmış Kullanıcı' : 'Doğrulanmamış Kullanıcı'}
+                </Text>
               </View>
             </View>
           </View>
-          
-          <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
-            <Ionicons name="create-outline" size={20} color="#007AFF" />
-          </TouchableOpacity>
-          </LinearGradient>
         </Animated.View>
         
         {/* Family Members Section */}
@@ -379,82 +613,52 @@ const ProfileScreen = ({ navigation }) => {
         >
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleContainer}>
-              <Ionicons name="people" size={20} color={theme.colors.text} />
+              <Ionicons name="people" size={24} color={theme.colors.primary} style={styles.sectionIcon} />
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('familyMembers')}</Text>
             </View>
-            <TouchableOpacity onPress={handleAddMember} style={[styles.addButton, { backgroundColor: theme.colors.primary }]}>
-              <Text style={[styles.addButtonText, { color: theme.colors.onPrimary }]}>Üye Ekle</Text>
+            <TouchableOpacity 
+              style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
+              onPress={handleAddMember}
+            >
+              <Ionicons name="add" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
           
           {familyMembers.map((member) => (
             <TouchableOpacity 
-              key={member.id} 
-              style={[styles.familyMemberItem, { borderBottomColor: theme.colors.border }]}
-              onPress={() => handleFamilyMemberPress(member)}
-            >
+               key={member.id} 
+               style={[styles.familyMemberItem, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}
+               onPress={() => {
+                 setEditingMember(member);
+                 setShowEditMemberModal(true);
+               }}
+             >
               <View style={styles.memberInfo}>
-                <View style={[styles.memberAvatar, { backgroundColor: theme.colors.surface }]}>
-                  <Text style={[styles.memberInitial, { color: theme.colors.primary }]}>{member.initial}</Text>
+                <View style={[styles.memberAvatar, { backgroundColor: theme.colors.primary }]}>
+                  <Text style={styles.memberInitial}>{member.initial}</Text>
                 </View>
                 <View style={styles.memberDetails}>
                   <Text style={[styles.memberName, { color: theme.colors.text }]}>{member.name}</Text>
-                  <Text style={[styles.memberLastSeen, { color: theme.colors.secondaryText }]}>⏰ {member.lastSeen}</Text>
+                  <Text style={[styles.memberRelation, { color: theme.colors.secondaryText }]}>{member.relation}</Text>
+                  <View style={styles.memberStatusContainer}>
+                    <View style={[styles.statusDot, { backgroundColor: member.statusColor }]} />
+                    <Text style={[styles.statusText, { color: theme.colors.secondaryText }]}>⏰ {member.lastSeen}</Text>
+                  </View>
                 </View>
               </View>
-              <View style={styles.memberStatus}>
-                <View style={[styles.statusIndicator, { backgroundColor: member.statusColor }]} />
-                <Text style={[styles.memberStatusText, { color: member.statusColor }]}>
-                  {member.status}
-                </Text>
-              </View>
-              <TouchableOpacity style={styles.memberOptions}>
-                <Ionicons name="ellipsis-horizontal" size={16} color={theme.colors.secondaryText} />
-              </TouchableOpacity>
+              <Ionicons name="chevron-forward" size={20} color={theme.colors.secondaryText} />
             </TouchableOpacity>
           ))}
           
-          <TouchableOpacity onPress={handleViewAllMembers} style={[styles.viewAllButton, { backgroundColor: theme.colors.surface }]}>
+          <TouchableOpacity onPress={handleViewAllMembers} style={[styles.viewAllButton, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
             <Text style={[styles.viewAllText, { color: theme.colors.primary }]}>Tüm Aile Üyelerini Görüntüle</Text>
+            <Ionicons name="chevron-forward" size={16} color={theme.colors.primary} />
           </TouchableOpacity>
         </Animated.View>
         
-        {/* Safety Status */}
-        <Animated.View 
-          style={[
-            styles.safetyContainer,
-            {
-              backgroundColor: theme.colors.cardBackground,
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }]
-            }
-          ]}
-        >
-          <View style={styles.safetyHeader}>
-            <View style={[styles.safetyIcon, { backgroundColor: theme.isDarkMode ? '#1C3A1C' : '#E8F5E8' }]}>
-              <Ionicons name="shield-checkmark" size={24} color="#34C759" />
-            </View>
-            <View style={styles.safetyInfo}>
-              <Text style={[styles.safetyTitle, { color: '#34C759' }]}>Durum: Güvenli</Text>
-              <Text style={[styles.safetySubtitle, { color: theme.colors.secondaryText }]}>Son güncelleme: 5 dakika önce</Text>
-            </View>
-          </View>
-        </Animated.View>
+
         
-        {/* Emergency Report Button */}
-        <Animated.View 
-          style={[
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }]
-            }
-          ]}
-        >
-          <TouchableOpacity style={styles.emergencyButton} onPress={handleEmergencyReport}>
-            <Ionicons name="warning" size={20} color="#FFFFFF" />
-            <Text style={styles.emergencyButtonText}>Acil Durum Bildir</Text>
-          </TouchableOpacity>
-        </Animated.View>
+
         
         <View style={styles.bottomSpacing} />
       </ScrollView>
@@ -519,14 +723,14 @@ const ProfileScreen = ({ navigation }) => {
                     onPress={() => handleCallMember(member.phone)}
                   >
                     <Ionicons name="call" size={16} color={theme.colors.primary} />
-                    <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>Ara</Text>
+                    <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>{t('call')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity 
                     style={styles.actionButton}
                     onPress={() => handleLocationRequest(member.name)}
                   >
                     <Ionicons name="location" size={16} color={theme.colors.primary} />
-                    <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>Konum Sor</Text>
+                    <Text style={[styles.actionButtonText, { color: theme.colors.primary }]}>{t('location')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -537,7 +741,7 @@ const ProfileScreen = ({ navigation }) => {
               onPress={handleAddMember}
             >
               <Ionicons name="add" size={20} color={theme.colors.primary} />
-              <Text style={[styles.addMemberText, { color: theme.colors.primary }]}>Yeni Aile Üyesi Ekle</Text>
+              <Text style={[styles.addMemberText, { color: theme.colors.primary }]}>{t('addMember')}</Text>
             </TouchableOpacity>
             
             <View style={styles.modalBottomSpacing} />
@@ -551,54 +755,74 @@ const ProfileScreen = ({ navigation }) => {
         animationType="slide"
         presentationStyle="pageSheet"
       >
-        <View style={[styles.modalContainer, { paddingTop: insets.top, backgroundColor: theme.colors.background }]}>
-          <View style={[styles.modalHeader, { backgroundColor: theme.colors.cardBackground, borderBottomColor: theme.colors.border }]}>
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>Profili Düzenle</Text>
-            <TouchableOpacity 
-              style={styles.modalCloseButton}
-              onPress={() => setShowEditProfile(false)}
-            >
-              <Ionicons name="close" size={24} color={theme.colors.secondaryText} />
-            </TouchableOpacity>
+        <View style={[styles.editModalContainer, { paddingTop: insets.top, backgroundColor: theme.colors.background }]}>
+          <View style={[styles.editModalHeader, { backgroundColor: theme.colors.cardBackground }]}>
+            <View style={styles.editModalHeaderContent}>
+              <TouchableOpacity 
+                style={styles.editModalCloseButton}
+                onPress={() => setShowEditProfile(false)}
+              >
+                <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+              <Text style={[styles.editModalTitle, { color: theme.colors.text }]}>Profili Düzenle</Text>
+              <TouchableOpacity 
+                style={[styles.editModalSaveButton, { backgroundColor: theme.colors.primary }]}
+                onPress={handleSaveProfile}
+              >
+                <Text style={[styles.editModalSaveText, { color: '#FFFFFF' }]}>Kaydet</Text>
+              </TouchableOpacity>
+            </View>
           </View>
           
-          <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
+          <ScrollView style={styles.editModalScrollView} showsVerticalScrollIndicator={false}>
             {/* Profile Image Section */}
-            <View style={[styles.formSection, { backgroundColor: theme.colors.cardBackground }]}>
-              <Text style={[styles.formSectionTitle, { color: theme.colors.text }]}>Profil Fotoğrafı</Text>
-              <View style={styles.profileImageContainer}>
-                <TouchableOpacity style={styles.profileImagePicker} onPress={pickImage}>
-                  {profileForm.profileImage ? (
-                    <Image source={{ uri: profileForm.profileImage }} style={styles.profileImagePreview} />
-                  ) : (
-                    <View style={styles.profileImagePlaceholder}>
-                      <Ionicons name="camera" size={32} color={theme.colors.secondaryText} />
-                      <Text style={[styles.profileImageText, { color: theme.colors.secondaryText }]}>Fotoğraf Seç</Text>
-                    </View>
-                  )}
+            <View style={[styles.editFormSection, { backgroundColor: theme.colors.cardBackground }]}>
+              <View style={styles.editProfileImageContainer}>
+                <View style={styles.editProfileImageWrapper}>
+                  <TouchableOpacity style={[styles.editProfileImagePicker, { borderColor: theme.colors.primary }]} onPress={pickImage}>
+                    {profileForm.profileImage ? (
+                      <Image source={{ uri: profileForm.profileImage }} style={styles.editProfileImagePreview} />
+                    ) : (
+                      <View style={[styles.editProfileImagePlaceholder, { backgroundColor: theme.colors.surface }]}>
+                        <Ionicons name="person" size={50} color={theme.colors.primary} />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.editImageButton, { backgroundColor: theme.colors.primary }]}
+                  >
+                    <Ionicons name="camera" size={16} color="#FFFFFF" />
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity 
+                  style={[styles.changePhotoButton, { backgroundColor: 'transparent', borderColor: theme.colors.primary }]}
+                  onPress={pickImage}
+                >
+                  <Ionicons name="camera-outline" size={18} color={theme.colors.primary} />
+                  <Text style={[styles.changePhotoText, { color: theme.colors.primary }]}>Fotoğraf Değiştir</Text>
                 </TouchableOpacity>
               </View>
             </View>
 
             {/* Personal Information */}
-            <View style={[styles.formSection, { backgroundColor: theme.colors.cardBackground }]}>
-              <Text style={[styles.formSectionTitle, { color: theme.colors.text }]}>Kişisel Bilgiler</Text>
+            <View style={[styles.editFormSection, { backgroundColor: theme.colors.cardBackground }]}>
+              <Text style={[styles.editFormSectionTitle, { color: theme.colors.text }]}>Kişisel Bilgiler</Text>
               
-              <View style={styles.formRow}>
-                <View style={styles.formField}>
-                  <Text style={[styles.formLabel, { color: theme.colors.text }]}>Ad</Text>
+              <View style={styles.editFormRow}>
+                <View style={styles.editFormField}>
+                  <Text style={[styles.editFormLabel, { color: theme.colors.text }]}>Ad</Text>
                   <TextInput
-                    style={[styles.formInput, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
+                    style={[styles.editFormInput, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
                     value={profileForm.firstName}
                     onChangeText={(text) => setProfileForm({ ...profileForm, firstName: text })}
                     placeholder="Adınızı giriniz"
                     placeholderTextColor={theme.colors.secondaryText}
                   />
                 </View>
-                <View style={styles.formField}>
-                  <Text style={[styles.formLabel, { color: theme.colors.text }]}>Soyad</Text>
+                <View style={styles.editFormField}>
+                  <Text style={[styles.editFormLabel, { color: theme.colors.text }]}>Soyad</Text>
                   <TextInput
-                    style={[styles.formInput, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
+                    style={[styles.editFormInput, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
                     value={profileForm.lastName}
                     onChangeText={(text) => setProfileForm({ ...profileForm, lastName: text })}
                     placeholder="Soyadınızı giriniz"
@@ -607,10 +831,10 @@ const ProfileScreen = ({ navigation }) => {
                 </View>
               </View>
 
-              <View style={styles.formFieldFull}>
-                <Text style={[styles.formLabel, { color: theme.colors.text }]}>E-posta</Text>
+              <View style={styles.editFormFieldFull}>
+                <Text style={[styles.editFormLabel, { color: theme.colors.text }]}>E-posta</Text>
                 <TextInput
-                  style={[styles.formInput, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
+                  style={[styles.editFormInput, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
                   value={profileForm.email}
                   onChangeText={(text) => setProfileForm({ ...profileForm, email: text })}
                   placeholder="E-posta adresinizi giriniz"
@@ -620,10 +844,10 @@ const ProfileScreen = ({ navigation }) => {
                 />
               </View>
 
-              <View style={styles.formFieldFull}>
-                <Text style={[styles.formLabel, { color: theme.colors.text }]}>Telefon</Text>
+              <View style={styles.editFormFieldFull}>
+                <Text style={[styles.editFormLabel, { color: theme.colors.text }]}>Telefon</Text>
                 <TextInput
-                  style={[styles.formInput, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
+                  style={[styles.editFormInput, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
                   value={profileForm.phone}
                   onChangeText={(text) => setProfileForm({ ...profileForm, phone: text })}
                   placeholder="+90 5XX XXX XX XX"
@@ -632,10 +856,10 @@ const ProfileScreen = ({ navigation }) => {
                 />
               </View>
 
-              <View style={styles.formFieldFull}>
-                <Text style={[styles.formLabel, { color: theme.colors.text }]}>Konum</Text>
+              <View style={styles.editFormFieldFull}>
+                <Text style={[styles.editFormLabel, { color: theme.colors.text }]}>Konum</Text>
                 <TextInput
-                  style={[styles.formInput, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
+                  style={[styles.editFormInput, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
                   value={profileForm.location}
                   onChangeText={(text) => setProfileForm({ ...profileForm, location: text })}
                   placeholder="Şehir, Ülke"
@@ -643,15 +867,73 @@ const ProfileScreen = ({ navigation }) => {
                 />
               </View>
 
-              <View style={styles.formFieldFull}>
-                <Text style={[styles.formLabel, { color: theme.colors.text }]}>Acil Durum İletişim</Text>
+            </View>
+
+            {/* Emergency Contact Section */}
+            <View style={[styles.editFormSection, { backgroundColor: theme.colors.cardBackground }]}>
+              <Text style={[styles.editFormSectionTitle, { color: theme.colors.text }]}>Acil Durum İletişim</Text>
+              <View style={[styles.emergencyContactContainer, { backgroundColor: theme.colors.surface, borderColor: theme.colors.primary }]}>
+                <Ionicons name="call" size={20} color={theme.colors.primary} style={styles.emergencyIcon} />
                 <TextInput
-                  style={[styles.formInput, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
+                  style={[styles.emergencyContactInput, { color: theme.colors.text }]}
                   value={profileForm.emergencyContact}
                   onChangeText={(text) => setProfileForm({ ...profileForm, emergencyContact: text })}
-                  placeholder="+90 5XX XXX XX XX"
+                  placeholder="Acil durum telefon numarası"
                   placeholderTextColor={theme.colors.secondaryText}
                   keyboardType="phone-pad"
+                />
+              </View>
+              <Text style={[styles.emergencyHelpText, { color: theme.colors.secondaryText }]}>Bu numara acil durumlarda aranacaktır</Text>
+            </View>
+
+            {/* Additional Information Section */}
+            <View style={[styles.editFormSection, { backgroundColor: theme.colors.cardBackground }]}>
+              <Text style={[styles.editFormSectionTitle, { color: theme.colors.text }]}>Ek Bilgiler</Text>
+              
+              <View style={styles.editFormFieldFull}>
+                <Text style={[styles.editFormLabel, { color: theme.colors.text }]}>Yaş</Text>
+                <TextInput
+                  style={[styles.editFormInput, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
+                  value={profileForm.age}
+                  onChangeText={(text) => setProfileForm({ ...profileForm, age: text })}
+                  placeholder="Yaşınızı giriniz"
+                  placeholderTextColor={theme.colors.secondaryText}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.formFieldFull}>
+                <Text style={[styles.formLabel, { color: theme.colors.text }]}>{t('occupation')}</Text>
+                <TextInput
+                  style={[styles.formInput, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
+                  value={profileForm.occupation}
+                  onChangeText={(text) => setProfileForm({ ...profileForm, occupation: text })}
+                  placeholder="Mesleğinizi giriniz"
+                  placeholderTextColor={theme.colors.secondaryText}
+                />
+              </View>
+
+              <View style={styles.formFieldFull}>
+                <Text style={[styles.formLabel, { color: theme.colors.text }]}>{t('bloodType')}</Text>
+                <TextInput
+                  style={[styles.formInput, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
+                  value={profileForm.bloodType}
+                  onChangeText={(text) => setProfileForm({ ...profileForm, bloodType: text })}
+                  placeholder="Kan grubunuzu giriniz (örn: A+)"
+                  placeholderTextColor={theme.colors.secondaryText}
+                />
+              </View>
+
+              <View style={styles.formFieldFull}>
+                <Text style={[styles.formLabel, { color: theme.colors.text }]}>{t('healthInfo')}</Text>
+                <TextInput
+                  style={[styles.formTextArea, { backgroundColor: theme.colors.surface, color: theme.colors.text, borderColor: theme.colors.border }]}
+                  value={profileForm.healthInfo}
+                  onChangeText={(text) => setProfileForm({ ...profileForm, healthInfo: text })}
+                  placeholder="Önemli sağlık bilgileri, alerjiler vb."
+                  placeholderTextColor={theme.colors.secondaryText}
+                  multiline
+                  numberOfLines={3}
                 />
               </View>
             </View>
@@ -662,7 +944,7 @@ const ProfileScreen = ({ navigation }) => {
                 style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
                 onPress={handleSaveProfile}
               >
-                <Text style={[styles.saveButtonText, { color: theme.colors.onPrimary }]}>Kaydet</Text>
+                <Text style={[styles.saveButtonText, { color: theme.colors.onPrimary }]}>{t('saveProfile')}</Text>
               </TouchableOpacity>
             </View>
             
@@ -680,14 +962,14 @@ const ProfileScreen = ({ navigation }) => {
          <View style={[styles.modalContainer, { paddingTop: insets.top, backgroundColor: theme.colors.background }]}>
            <View style={[styles.modalHeader, { backgroundColor: theme.colors.cardBackground, borderBottomColor: theme.colors.border }]}>
              <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
-               {editingMember ? 'Aile Üyesini Düzenle' : 'Yeni Aile Üyesi Ekle'}
+               {editingMember ? t('editMember') : t('addMember')}
              </Text>
              <TouchableOpacity 
                style={styles.modalCloseButton}
                onPress={() => {
                  setShowAddMember(false);
                  setEditingMember(null);
-                 setMemberForm({ name: '', surname: '', phone: '', relationship: '' });
+                 setMemberForm({ name: '', surname: '', relation: '', phone: '', emergencyContact: false });
                }}
              >
                <Ionicons name="close" size={24} color={theme.colors.secondaryText} />
@@ -742,18 +1024,18 @@ const ProfileScreen = ({ navigation }) => {
                        style={[
                          styles.relationshipButton,
                          {
-                           backgroundColor: memberForm.relationship === relation 
+                           backgroundColor: memberForm.relation === relation 
                              ? theme.colors.primary 
                              : theme.colors.surface,
                            borderColor: theme.colors.border
                          }
                        ]}
-                       onPress={() => setMemberForm({ ...memberForm, relationship: relation })}
+                       onPress={() => setMemberForm({ ...memberForm, relation: relation })}
                      >
                        <Text style={[
                          styles.relationshipButtonText,
                          {
-                           color: memberForm.relationship === relation 
+                           color: memberForm.relation === relation 
                              ? theme.colors.onPrimary 
                              : theme.colors.text
                          }
@@ -790,62 +1072,191 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  headerIcons: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  headerIcon: {
-    marginLeft: 16,
-    padding: 4,
-  },
+
   scrollView: {
     flex: 1,
+    paddingTop: 8,
   },
-  profileCard: {
-    borderRadius: 24,
+  modernProfileCard: {
+    position: 'relative',
+    borderRadius: 28,
     marginHorizontal: 20,
     marginBottom: 24,
+    padding: 32,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 8,
     },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
-    overflow: 'hidden',
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 12,
+    borderWidth: 0,
+    backgroundColor: '#FFFFFF',
+    minHeight: 320,
   },
-  gradientBackground: {
-    padding: 24,
+  editIconButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    width: 40,
+    height: 40,
     borderRadius: 20,
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
+    zIndex: 1,
   },
-  centeredProfileContent: {
+  profileContent: {
     alignItems: 'center',
-    justifyContent: 'center',
+  },
+  profileImageSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  userInfoMain: {
+    alignItems: 'center',
     width: '100%',
   },
-  profileHeader: {
+  profileImageButton: {
+    position: 'relative',
+    marginRight: 16,
+  },
+  profileImageWrapper: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    borderWidth: 4,
+    borderColor: 'rgba(0, 122, 255, 0.3)',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 6,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+    backgroundColor: '#FAFBFC',
+  },
+  profileImageLarge: {
+    width: '100%',
+    height: '100%',
+  },
+  profileImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 122, 255, 0.05)',
+  },
+  addPhotoText: {
+    fontSize: 10,
+    fontWeight: '500',
+    marginTop: 4,
+    textAlign: 'center',
+  },
+
+  userInfoSection: {
+    flex: 1,
+  },
+  userFullName: {
+    fontSize: 28,
+    fontWeight: '800',
+    marginBottom: 8,
+    marginTop: 0,
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    lineHeight: 34,
+  },
+  userEmail: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 16,
+    textAlign: 'center',
+    opacity: 0.8,
+    letterSpacing: 0.2,
+  },
+  verificationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    marginBottom: 24,
+  },
+  verificationText: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+    letterSpacing: 0.2,
+  },
+
+
+  profileDetails: {
+    marginTop: 0,
+    paddingTop: 0,
+  },
+  detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 12,
+    gap: 12,
+  },
+  detailItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FAFBFC',
+    padding: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.03)',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.02,
+    shadowRadius: 4,
+    elevation: 1,
+    minHeight: 64,
+  },
+  detailContent: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  detailLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 4,
+    opacity: 0.6,
+    letterSpacing: 0.2,
+    textTransform: 'uppercase',
+  },
+  detailValue: {
+    fontSize: 14,
+    fontWeight: '500',
+    lineHeight: 18,
+    letterSpacing: 0.1,
   },
   avatarContainer: {
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingTop: 0,
+  },
+  profileImageContainer: {
+    position: 'relative',
+    marginBottom: 12,
     alignItems: 'center',
   },
   avatar: {
@@ -855,7 +1266,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 0,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -863,7 +1274,20 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
+    elevation: 4,
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.8)',
+  },
+  onlineIndicator: {
+    position: 'absolute',
+    bottom: 5,
+    right: 5,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#4CAF50',
+    borderWidth: 3,
+    borderColor: '#fff',
   },
   statusBadge: {
     backgroundColor: '#34C759',
@@ -885,29 +1309,49 @@ const styles = StyleSheet.create({
     backgroundColor: '#F2F2F7',
   },
   userName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: '700',
     color: '#FFFFFF',
     textAlign: 'center',
     marginBottom: 6,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
+    marginTop: 8,
   },
   userLocation: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
     opacity: 0.9,
+    fontWeight: '500',
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    alignItems: 'center',
     paddingTop: 20,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 10,
   },
   statItem: {
     alignItems: 'center',
+    flex: 1,
+  },
+  statIconContainer: {
+    width: 35,
+    height: 35,
+    borderRadius: 17.5,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    marginHorizontal: 10,
   },
   statNumber: {
     fontSize: 22,
@@ -916,46 +1360,60 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#FFFFFF',
     fontWeight: '500',
-    opacity: 0.8,
+    opacity: 0.9,
+    textAlign: 'center',
   },
   sectionContainer: {
-    marginHorizontal: 20,
+    marginHorizontal: 16,
     marginTop: 20,
     borderRadius: 24,
-    padding: 24,
+    padding: 28,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: 2,
+      height: 8,
     },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.12,
+    shadowRadius: 20,
+    elevation: 12,
+    borderWidth: 0,
+    backgroundColor: '#FFFFFF',
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   sectionTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
+  sectionIcon: {
+    marginRight: 10,
+  },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: '800',
+    letterSpacing: 0.5,
     color: '#000000',
     marginLeft: 8,
   },
   addButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#FFA500',
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#FFA500',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
   addButtonText: {
     fontSize: 12,
@@ -963,43 +1421,71 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   familyMemberItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F2F2F7',
-  },
+     flexDirection: 'row',
+     alignItems: 'center',
+     paddingVertical: 18,
+     paddingHorizontal: 20,
+     marginVertical: 6,
+     borderRadius: 20,
+     elevation: 3,
+     shadowColor: '#000',
+     shadowOffset: { width: 0, height: 2 },
+     shadowOpacity: 0.08,
+     shadowRadius: 6,
+     borderWidth: 1,
+     borderColor: '#E9ECEF',
+     backgroundColor: '#F8F9FA',
+   },
   memberInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
   },
   memberAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#E3F2FD',
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FFA500',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 18,
+    elevation: 4,
+    shadowColor: '#FFA500',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 6,
   },
   memberInitial: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#007AFF',
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
   },
   memberDetails: {
     flex: 1,
   },
   memberName: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#000000',
-    marginBottom: 2,
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 6,
+    letterSpacing: 0.3,
   },
-  memberLastSeen: {
+  memberRelation: {
+    fontSize: 14,
+    marginBottom: 6,
+  },
+  memberStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  statusText: {
     fontSize: 12,
-    color: '#8E8E93',
+    fontWeight: '500',
   },
   memberStatus: {
     flexDirection: 'row',
@@ -1020,9 +1506,19 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   viewAllButton: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    marginTop: 8,
+    justifyContent: 'center',
+    paddingVertical: 14,
+    marginTop: 12,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    marginHorizontal: 6,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
   },
   viewAllText: {
     fontSize: 14,
@@ -1030,10 +1526,10 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   safetyContainer: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 24,
-    padding: 24,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 20,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -1041,7 +1537,7 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.08,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 4,
   },
   safetyHeader: {
     flexDirection: 'row',
@@ -1070,28 +1566,44 @@ const styles = StyleSheet.create({
     color: '#8E8E93',
   },
   emergencyButton: {
-    backgroundColor: '#FF3B30',
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 24,
-    padding: 20,
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 16,
+    padding: 18,
     flexDirection: 'row',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     alignItems: 'center',
     shadowColor: '#FF3B30',
     shadowOffset: {
       width: 0,
-      height: 4,
+      height: 3,
     },
-    shadowOpacity: 0.3,
-     shadowRadius: 15,
-     elevation: 8,
+    shadowOpacity: 0.25,
+     shadowRadius: 10,
+     elevation: 6,
+  },
+  emergencyIconContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  emergencyTextContainer: {
+    flex: 1,
+    marginLeft: 15,
   },
   emergencyButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#FFFFFF',
-    marginLeft: 8,
+    marginBottom: 4,
+  },
+  emergencySubtext: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 14,
+    fontWeight: '500',
   },
   bottomSpacing: {
     height: 100,
@@ -1101,18 +1613,46 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    margin: 20,
+    borderRadius: 28,
+    padding: 28,
+    elevation: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 20,
+    backgroundColor: '#FFFFFF',
+    maxHeight: '85%',
+  },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+    borderBottomWidth: 0,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+    color: '#000000',
   },
   modalCloseButton: {
     padding: 4,
@@ -1251,21 +1791,24 @@ const styles = StyleSheet.create({
   
   // Form Styles
   formSection: {
-    marginHorizontal: 16,
+    marginHorizontal: 20,
     marginVertical: 8,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 24,
+    padding: 28,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.06,
+    shadowRadius: 16,
+    elevation: 4,
+    backgroundColor: '#FFFFFF',
   },
   
   formSectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 24,
+    letterSpacing: 0.1,
+    color: '#000000',
   },
   
   formRow: {
@@ -1282,17 +1825,29 @@ const styles = StyleSheet.create({
   },
   
   formLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 8,
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 10,
+    color: '#333333',
+    letterSpacing: 0.2,
   },
   
   formInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
+    borderWidth: 0,
+    borderRadius: 20,
+    padding: 20,
     fontSize: 16,
-    minHeight: 48,
+    minHeight: 60,
+    backgroundColor: '#F8F9FA',
+    fontWeight: '500',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
   },
   
   // Profile Image Styles
@@ -1325,6 +1880,118 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 4,
   },
+
+  // Edit Profile Image Styles
+  editProfileImageContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  editProfileImagePicker: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+
+  editProfileImagePreview: {
+    width: '100%',
+    height: '100%',
+  },
+
+  editProfileImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 47,
+  },
+
+  editProfileImageText: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 4,
+  },
+
+  changePhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    gap: 8,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+
+  changePhotoText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+
+  // Emergency Contact Styles
+  emergencyContactContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 0,
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+
+  emergencyIcon: {
+    marginRight: 12,
+  },
+
+  emergencyContactInput: {
+    flex: 1,
+    fontSize: 16,
+    paddingVertical: 16,
+    fontWeight: '500',
+  },
+
+  emergencyHelpText: {
+    fontSize: 12,
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
+
+  // Form Text Area
+  formTextArea: {
+    borderWidth: 0,
+    borderRadius: 20,
+    padding: 20,
+    fontSize: 16,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    fontWeight: '500',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.03,
+    shadowRadius: 4,
+    elevation: 1,
+  },
   
   // Relationship Buttons
   relationshipButtons: {
@@ -1335,37 +2002,324 @@ const styles = StyleSheet.create({
   },
   
   relationshipButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    marginBottom: 8,
   },
   
   relationshipButtonText: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 15,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   
   // Form Actions
-  formActions: {
-    marginHorizontal: 16,
-    marginVertical: 16,
+  // Edit Modal Styles
+  editModalContainer: {
+    flex: 1,
+  },
+
+  editModalHeader: {
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+
+  editModalHeaderContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    minHeight: 44,
+  },
+
+  editModalCloseButton: {
+    padding: 8,
+    borderRadius: 20,
+    minWidth: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  editModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+
+  editModalSaveButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    minWidth: 70,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  editModalSaveText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+
+  editModalScrollView: {
+    flex: 1,
+    paddingBottom: 20,
+  },
+
+  modalBottomSpacing: {
+    height: 40,
   },
   
-  saveButton: {
+  editFormSection: {
+    marginHorizontal: 16,
+    marginVertical: 8,
+    borderRadius: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+
+  editFormSectionTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 16,
+    letterSpacing: 0.1,
+  },
+
+  editFormRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 16,
+  },
+
+  editFormField: {
+    flex: 1,
+  },
+
+  editFormFieldFull: {
+    marginBottom: 16,
+  },
+
+  editFormLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+    letterSpacing: 0.1,
+  },
+
+  editFormInput: {
+    borderWidth: 1,
     borderRadius: 12,
     padding: 16,
+    fontSize: 16,
+    fontWeight: '500',
+    minHeight: 52,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.03,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  
+  editProfileImageWrapper: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  editProfileImageContainer: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+
+  editProfileImagePicker: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
+    overflow: 'hidden',
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+
+  editProfileImagePreview: {
+    width: '100%',
+    height: '100%',
+  },
+
+  editProfileImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 47,
+  },
+
+  editImageButton: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+
+  editImageButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginLeft: 8,
+  },
+
+  changePhotoButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+
+  changePhotoText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+
+  formActions: {
+    marginHorizontal: 16,
+    marginVertical: 20,
+    marginBottom: 40,
+  },
+
+  saveButton: {
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 52,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+
+  saveButtonText: {
+    fontSize: 17,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  viewAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 18,
+    paddingHorizontal: 24,
+    marginTop: 16,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#FFA500',
+    backgroundColor: '#FFF8F0',
+    shadowColor: '#FFA500',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  
-  saveButtonText: {
+  viewAllText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#FFA500',
+    letterSpacing: 0.2,
+  },
+  memberDetails: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  memberName: {
     fontSize: 16,
     fontWeight: '600',
+    marginBottom: 4,
+  },
+  memberRelation: {
+    fontSize: 14,
+    marginBottom: 6,
+  },
+  memberStatusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginRight: 6,
+  },
+  memberInitial: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  authButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  authButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });
 

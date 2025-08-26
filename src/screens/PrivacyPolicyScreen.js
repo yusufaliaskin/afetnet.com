@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import Header from '../components/Header';
+import StatusBar from '../components/StatusBar';
 
 const PrivacyPolicyScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -68,9 +68,11 @@ const PrivacyPolicyScreen = ({ navigation }) => {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.colors.background }]}>
-      <Header 
+      <StatusBar 
         title="Gizlilik Politikası" 
-        showBackButton={true}
+        showSearch={false}
+        showNotifications={false}
+        showBack={true}
         onBackPress={() => navigation.goBack()}
       />
 

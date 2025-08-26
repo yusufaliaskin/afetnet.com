@@ -55,6 +55,7 @@ export const ThemeProvider = ({ children }) => {
       // Border colors
       border: isDarkMode ? '#38383A' : '#E5E5EA',
       separator: isDarkMode ? '#38383A' : '#C6C6C8',
+      shadow: isDarkMode ? '#000000' : '#000000',
       
       // Switch colors
       switchTrackOn: isDarkMode ? '#000000' : '#000000', // Siyah renk

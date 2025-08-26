@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,22 +9,99 @@ import {
   TextInput,
   Alert,
   Share,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 
 const PostDetailScreen = ({ route, navigation }) => {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const { t, language } = useLanguage();
-  const { post } = route.params;
+  const { user } = useAuth();
+  const { postId, focusComments } = route.params;
 
-  const [isLiked, setIsLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(post.stats.likes);
+  const [post, setPost] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [commentText, setCommentText] = useState('');
-  const [comments, setComments] = useState([
+  const [comments, setComments] = useState([]);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+
+  // Fetch post details
+  const fetchPostDetails = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/posts/${postId}`, {
+        headers: {
+          'Authorization': user ? `Bearer ${user.access_token}` : '',
+        },
+      });
+
+      const data = await response.json();
+      if (response.ok) {
+        setPost(data.post);
+      } else {
+        Alert.alert(
+          t.error || 'Hata',
+          data.error || t.post_not_found || 'Post bulunamadı.'
+        );
+        navigation.goBack();
+      }
+    } catch (error) {
+      console.error('Error fetching post details:', error);
+      Alert.alert(
+        t.error || 'Hata',
+        t.network_error || 'Ağ hatası oluştu.'
+      );
+      navigation.goBack();
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Fetch comments
+  const fetchComments = async () => {
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/posts/${postId}/comments`);
+      const data = await response.json();
+      if (response.ok) {
+        setComments(data.comments || []);
+      }
+    } catch (error) {
+      console.error('Error fetching comments:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchPostDetails();
+    fetchComments();
+  }, [postId]);
+
+  if (isLoading) {
+    return (
+      <View style={[{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background }, { paddingTop: insets.top }]}>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text style={{ marginTop: 16, color: theme.colors.text }}>
+          {t.loading || 'Yükleniyor...'}
+        </Text>
+      </View>
+    );
+  }
+
+  if (!post) {
+    return (
+      <View style={[{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background }, { paddingTop: insets.top }]}>
+        <Text style={{ color: theme.colors.text }}>
+          {t.post_not_found || 'Post bulunamadı.'}
+        </Text>
+      </View>
+    );
+  }
+
+  const [oldComments] = useState([
     {
       id: 1,
       user: {
@@ -49,38 +126,141 @@ const PostDetailScreen = ({ route, navigation }) => {
     },
   ]);
 
-  const handleLike = () => {
-    setIsLiked(!isLiked);
-    setLikeCount(isLiked ? likeCount - 1 : likeCount + 1);
+  // Handle like/unlike
+  const handleLike = async () => {
+    if (!user) {
+      Alert.alert(
+        t.login_required || 'Giriş Gerekli',
+        t.login_required_message || 'Bu işlem için giriş yapmanız gerekiyor.'
+      );
+      return;
+    }
+
+    try {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/posts/${postId}/likes`, {
+        method: post.user_liked ? 'DELETE' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.access_token}`,
+        },
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setPost(prevPost => ({
+          ...prevPost,
+          likes_count: data.likes_count || prevPost.likes_count,
+          user_liked: !prevPost.user_liked
+        }));
+      } else {
+        Alert.alert(
+          t.error || 'Hata',
+          data.error || t.operation_failed || 'İşlem başarısız oldu.'
+        );
+      }
+    } catch (error) {
+      console.error('Error liking post:', error);
+      Alert.alert(
+        t.error || 'Hata',
+        t.network_error || 'Ağ hatası oluştu.'
+      );
+    }
   };
 
   const handleShare = async () => {
     try {
       await Share.share({
-        message: `${post.content.text}\n\n${post.content.description}`,
-        title: post.content.text,
+        message: `${post.title}\n\n${post.content}`,
+        title: post.title,
       });
     } catch (error) {
       Alert.alert(
-        language === 'tr' ? 'Hata' : 'Error',
-        language === 'tr' ? 'Paylaşım sırasında bir hata oluştu.' : 'An error occurred while sharing.'
+        t.error || 'Hata',
+        t.share_error || 'Paylaşım sırasında bir hata oluştu.'
       );
     }
   };
 
-  const handleAddComment = () => {
-    if (commentText.trim()) {
-      const newComment = {
-        id: comments.length + 1,
-        user: {
-          name: language === 'tr' ? 'Sen' : 'You',
-          avatar: 'https://via.placeholder.com/40x40/8B4513/FFFFFF?text=S',
+  const formatDate = (dateString) => {
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInMs = now - date;
+    const diffInMinutes = Math.floor(diffInMs / (1000 * 60));
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
+
+    if (diffInMinutes < 1) {
+      return 'Şimdi';
+    } else if (diffInMinutes < 60) {
+      return `${diffInMinutes} dakika önce`;
+    } else if (diffInHours < 24) {
+      return `${diffInHours} saat önce`;
+    } else if (diffInDays < 7) {
+      return `${diffInDays} gün önce`;
+    } else {
+      return date.toLocaleDateString('tr-TR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+    }
+  };
+
+  // Handle add comment
+  const handleAddComment = async () => {
+    if (!user) {
+      Alert.alert(
+        t.login_required || 'Giriş Gerekli',
+        t.login_required_message || 'Bu işlem için giriş yapmanız gerekiyor.'
+      );
+      return;
+    }
+
+    if (!commentText.trim()) {
+      Alert.alert(
+        t.error || 'Hata',
+        t.comment_required || 'Yorum yazmanız gerekiyor.'
+      );
+      return;
+    }
+
+    try {
+      setIsSubmittingComment(true);
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/posts/${postId}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${user.access_token}`,
         },
-        text: commentText,
-        date: language === 'tr' ? 'Şimdi' : 'Now',
-      };
-      setComments([...comments, newComment]);
-      setCommentText('');
+        body: JSON.stringify({
+          content: commentText.trim()
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setComments(prevComments => [...prevComments, data.comment]);
+        setPost(prevPost => ({
+          ...prevPost,
+          comments_count: (prevPost.comments_count || 0) + 1
+        }));
+        setCommentText('');
+      } else {
+        Alert.alert(
+          t.error || 'Hata',
+          data.error || t.operation_failed || 'Yorum eklenemedi.'
+        );
+      }
+    } catch (error) {
+      console.error('Error adding comment:', error);
+      Alert.alert(
+        t.error || 'Hata',
+        t.network_error || 'Ağ hatası oluştu.'
+      );
+    } finally {
+      setIsSubmittingComment(false);
     }
   };
 
@@ -313,15 +493,23 @@ const PostDetailScreen = ({ route, navigation }) => {
         <View style={styles.postContainer}>
           {/* User Header */}
           <View style={styles.userHeader}>
-            <Image 
-              source={typeof post.user.avatar === 'string' ? { uri: post.user.avatar } : post.user.avatar}
-              style={styles.avatar}
-              resizeMode="cover"
-            />
+            {post.users?.avatar_url ? (
+              <Image 
+                source={{ uri: post.users.avatar_url }}
+                style={styles.avatar}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={[styles.avatar, { backgroundColor: theme.colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={{ color: '#FFFFFF', fontSize: 18, fontWeight: '600' }}>
+                  {(post.users?.full_name || post.users?.username || 'A').charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
             <View style={styles.userInfo}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                <Text style={styles.userName}>{post.user.name}</Text>
-                {post.user.verified && (
+                <Text style={styles.userName}>{post.users?.full_name || post.users?.username || 'Anonim'}</Text>
+                {post.users?.is_verified && (
                   <Ionicons 
                     name="checkmark-circle" 
                     size={18} 
@@ -330,46 +518,48 @@ const PostDetailScreen = ({ route, navigation }) => {
                   />
                 )}
               </View>
-              <Text style={styles.userHandle}>{post.user.username}</Text>
+              <Text style={styles.userHandle}>@{post.users?.username || 'anonim'}</Text>
             </View>
           </View>
 
           {/* Content */}
           <View style={styles.contentContainer}>
-            <Text style={styles.contentDate}>{post.content.date}</Text>
-            <Text style={styles.contentTitle}>{post.content.text}</Text>
-            <Text style={styles.contentDescription}>{post.content.description}</Text>
+            <Text style={styles.contentDate}>{formatDate(post.created_at)}</Text>
+            <Text style={styles.contentTitle}>{post.title}</Text>
+            <Text style={styles.contentDescription}>{post.content}</Text>
             
-            <Image 
-              source={typeof post.content.image === 'string' ? { uri: post.content.image } : post.content.image}
-              style={styles.contentImage}
-              resizeMode="cover"
-            />
+            {post.image_url && (
+              <Image 
+                source={{ uri: post.image_url }}
+                style={styles.contentImage}
+                resizeMode="cover"
+              />
+            )}
           </View>
         </View>
 
         {/* Actions */}
         <View style={styles.actionsContainer}>
           <TouchableOpacity 
-            style={[styles.actionButton, styles.likeButton]} 
+            style={[styles.actionButton, post.user_liked && styles.likeButton]} 
             onPress={handleLike}
           >
             <Ionicons 
-              name={isLiked ? "heart" : "heart-outline"} 
+              name={post.user_liked ? "heart" : "heart-outline"} 
               size={20} 
-              color={isLiked ? "#FF3B30" : theme.colors.secondaryText} 
+              color={post.user_liked ? "#FF3B30" : theme.colors.secondaryText} 
             />
-            <Text style={[styles.actionText, styles.likeText]}>{likeCount}</Text>
+            <Text style={[styles.actionText, post.user_liked && styles.likeText]}>{post.likes_count || 0}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.actionButton}>
             <Ionicons name="eye-outline" size={20} color={theme.colors.secondaryText} />
-            <Text style={[styles.actionText, styles.shareText]}>{post.stats.views}</Text>
+            <Text style={[styles.actionText, styles.shareText]}>{post.views_count || 0}</Text>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.actionButton}>
             <Ionicons name="chatbubble-outline" size={20} color={theme.colors.secondaryText} />
-            <Text style={[styles.actionText, styles.shareText]}>{comments.length}</Text>
+            <Text style={[styles.actionText, styles.shareText]}>{post.comments_count || 0}</Text>
           </TouchableOpacity>
         </View>
 
@@ -389,27 +579,43 @@ const PostDetailScreen = ({ route, navigation }) => {
               onChangeText={setCommentText}
               multiline
             />
-            <TouchableOpacity style={styles.sendButton} onPress={handleAddComment}>
-              <Text style={styles.sendButtonText}>
-                {language === 'tr' ? 'Gönder' : 'Send'}
-              </Text>
+            <TouchableOpacity 
+              style={[styles.sendButton, isSubmittingComment && { opacity: 0.6 }]} 
+              onPress={handleAddComment}
+              disabled={isSubmittingComment}
+            >
+              {isSubmittingComment ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.sendButtonText}>
+                  {t.send || 'Gönder'}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
 
           {/* Comments List */}
           {comments.map((comment) => (
             <View key={comment.id} style={styles.commentItem}>
-              <Image 
-                source={{ uri: comment.user.avatar }}
-                style={styles.commentAvatar}
-                resizeMode="cover"
-              />
+              {comment.users?.avatar_url ? (
+                <Image 
+                  source={{ uri: comment.users.avatar_url }}
+                  style={styles.commentAvatar}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={[styles.commentAvatar, { backgroundColor: theme.colors.primary, justifyContent: 'center', alignItems: 'center' }]}>
+                  <Text style={{ color: '#FFFFFF', fontSize: 14, fontWeight: '600' }}>
+                    {(comment.users?.full_name || comment.users?.username || 'A').charAt(0).toUpperCase()}
+                  </Text>
+                </View>
+              )}
               <View style={styles.commentContent}>
                 <View style={styles.commentHeader}>
-                  <Text style={styles.commentUserName}>{comment.user.name}</Text>
-                  <Text style={styles.commentDate}>{comment.date}</Text>
+                  <Text style={styles.commentUserName}>{comment.users?.full_name || comment.users?.username || 'Anonim'}</Text>
+                  <Text style={styles.commentDate}>{formatDate(comment.created_at)}</Text>
                 </View>
-                <Text style={styles.commentText}>{comment.text}</Text>
+                <Text style={styles.commentText}>{comment.content}</Text>
               </View>
             </View>
           ))}

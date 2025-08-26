@@ -13,7 +13,7 @@ export const useLanguage = () => {
 const translations = {
   tr: {
     // Header
-    appName: 'AfetLink',
+    appName: 'AfetNet',
     
     // Home Screen
     emergencySituations: 'Acil Durumlar',
@@ -39,10 +39,25 @@ const translations = {
     lastUpdate: 'Son Güncelleme',
     emergencyAlert: 'Acil Durum Bildirimi',
     sendAlert: 'Bildirim Gönder',
-      viewAll: 'Tümünü Gör',
-      addMember: 'Ekle',
-      
-      // Map Screen
+    viewAll: 'Tümünü Gör',
+    addMember: 'Ekle',
+    firstName: 'Ad',
+    lastName: 'Soyad',
+    email: 'E-posta',
+    phone: 'Telefon',
+    location: 'Konum',
+    editProfile: 'Profili Düzenle',
+    saveProfile: 'Profili Kaydet',
+    cancel: 'İptal',
+    editMember: 'Aile Üyesini Düzenle',
+    emergencyContact: 'Acil Durum İletişim',
+    additionalInfo: 'Ek Bilgiler (İsteğe Bağlı)',
+    age: 'Yaş',
+    occupation: 'Meslek',
+    bloodType: 'Kan Grubu',
+    healthInfo: 'Sağlık Durumu / Alerjiler',
+       
+       // Map Screen
       map: 'Harita',
       comingSoon: 'Bu özellik yakında kullanıma sunulacak',
       
@@ -112,12 +127,12 @@ const translations = {
     english: 'English',
     
     // Version Info
-    version: 'AfetLink v1.0.0',
-    copyright: '© 2024 AfetLink. Tüm hakları saklıdır.',
+    version: 'AfetNet v0.2.1 Beta',
+    copyright: '© 2025 AfetNet. Tüm hakları saklıdır.',
   },
   en: {
     // Header
-    appName: 'AfetLink',
+    appName: 'AfetNet',
     
     // Home Screen
     emergencySituations: 'Emergency Situations',
@@ -145,8 +160,23 @@ const translations = {
     sendAlert: 'Send Alert',
     viewAll: 'View All',
     addMember: 'Add',
-    
-    // Map Screen
+    firstName: 'First Name',
+    lastName: 'Last Name',
+    email: 'Email',
+    phone: 'Phone',
+    location: 'Location',
+    editProfile: 'Edit Profile',
+    saveProfile: 'Save Profile',
+    cancel: 'Cancel',
+    editMember: 'Edit Family Member',
+    emergencyContact: 'Emergency Contact',
+    additionalInfo: 'Additional Information (Optional)',
+    age: 'Age',
+    occupation: 'Occupation',
+    bloodType: 'Blood Type',
+    healthInfo: 'Health Condition / Allergies',
+     
+     // Map Screen
       map: 'Map',
       comingSoon: 'This feature will be available soon',
       
@@ -216,8 +246,8 @@ const translations = {
     english: 'English',
     
     // Version Info
-    version: 'AfetLink v1.0.0',
-    copyright: '© 2024 AfetLink. All rights reserved.',
+    version: 'AfetNet v0.2.1 Beta',
+    copyright: '© 2024 AfetNet. All rights reserved.',
   },
 };
 

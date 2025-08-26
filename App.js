@@ -1,14 +1,20 @@
+// Import polyfills first
+import './src/polyfills';
+
 import React, { useState, useEffect } from 'react';
-import { View } from 'react-native';
+import { View, AppRegistry } from 'react-native';
+import { name as appName } from './app.json';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
 import { Ionicons } from '@expo/vector-icons';
 import { StatusBar } from 'expo-status-bar';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { ThemeProvider } from './src/contexts/ThemeContext';
 import { LanguageProvider } from './src/contexts/LanguageContext';
 import { NotificationProvider } from './src/contexts/NotificationContext';
+import { AuthProvider } from './src/contexts/AuthContext';
 import NotificationContainer from './src/components/NotificationContainer';
 import HomeScreen from './src/screens/HomeScreen';
 import RasathaneScreen from './src/screens/RasathaneScreen';
@@ -17,6 +23,12 @@ import ProfileScreen from './src/screens/ProfileScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import EmergencyScreen from './src/screens/EmergencyScreen';
 import SplashScreen from './src/screens/SplashScreen';
+
+import LoginScreen from './src/screens/LoginScreen';
+import RegisterScreen from './src/screens/RegisterScreen';
+import ForgotPasswordScreen from './src/screens/ForgotPasswordScreen';
+import VerifyCodeScreen from './src/screens/VerifyCodeScreen';
+import ResetPasswordScreen from './src/screens/ResetPasswordScreen';
 import HelpCenterScreen from './src/screens/HelpCenterScreen';
 import AboutScreen from './src/screens/AboutScreen';
 import PrivacyPolicyScreen from './src/screens/PrivacyPolicyScreen';
@@ -24,6 +36,7 @@ import TermsOfUseScreen from './src/screens/TermsOfUseScreen';
 import NotificationsScreen from './src/screens/NotificationsScreen';
 import PostDetailScreen from './src/screens/PostDetailScreen';
 import EarthquakeDetailScreen from './src/screens/EarthquakeDetailScreen';
+import CreatePostScreen from './src/screens/CreatePostScreen';
 
 import { useTheme } from './src/contexts/ThemeContext';
 
@@ -54,7 +67,7 @@ function TabNavigator() {
                 backgroundColor: '#FF8C00',
                 justifyContent: 'center',
                 alignItems: 'center',
-                marginBottom: -7,
+                marginBottom: -2,
                 shadowColor: '#FF8C00',
                 shadowOffset: {
                   width: 0,
@@ -75,16 +88,16 @@ function TabNavigator() {
 
           return <Ionicons name={iconName} size={iconSize} color={color} />;
         },
-        tabBarActiveTintColor: '#1F2937',
-        tabBarInactiveTintColor: '#9CA3AF',
+        tabBarActiveTintColor: theme.colors.text,
+        tabBarInactiveTintColor: theme.colors.secondaryText,
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
+          backgroundColor: theme.colors.cardBackground,
           borderTopWidth: 0,
           height: 80,
-          paddingBottom: 20,
-          paddingTop: 12,
+          paddingBottom: 25,
+          paddingTop: 5,
           paddingHorizontal: 20,
-          shadowColor: '#000',
+          shadowColor: theme.colors.text,
           shadowOffset: {
             width: 0,
             height: -2,
@@ -97,12 +110,13 @@ function TabNavigator() {
         tabBarLabelStyle: {
           fontSize: 12,
           fontWeight: '500',
-          marginTop: 4,
+          marginTop: 2,
         },
         tabBarItemStyle: {
-          paddingVertical: 4,
+          paddingVertical: 2,
         },
         headerShown: false,
+        animationEnabled: false,
       })}
     >
       <Tab.Screen 
@@ -156,15 +170,23 @@ function AppNavigator() {
         translucent={false}
       />
       <Stack.Navigator
+        initialRouteName="Login"
         screenOptions={{
           headerShown: false,
+          animationEnabled: false,
         }}
       >
         <Stack.Screen name="Main" component={TabNavigator} />
+        <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="Register" component={RegisterScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+        <Stack.Screen name="VerifyCode" component={VerifyCodeScreen} />
+        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
         <Stack.Screen name="Emergency" component={EmergencyScreen} />
         <Stack.Screen name="Notifications" component={NotificationsScreen} />
         <Stack.Screen name="PostDetail" component={PostDetailScreen} />
         <Stack.Screen name="EarthquakeDetail" component={EarthquakeDetailScreen} />
+        <Stack.Screen name="CreatePost" component={CreatePostScreen} />
         <Stack.Screen name="HelpCenter" component={HelpCenterScreen} />
         <Stack.Screen name="About" component={AboutScreen} />
         <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
@@ -183,16 +205,23 @@ export default function App() {
   };
 
   return (
-    <ThemeProvider>
-      <LanguageProvider>
-        <NotificationProvider>
-          {showSplash ? (
-            <SplashScreen onFinish={handleSplashFinish} />
-          ) : (
-            <AppNavigator />
-          )}
-        </NotificationProvider>
-      </LanguageProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <LanguageProvider>
+          <NotificationProvider>
+            <AuthProvider>
+              {showSplash ? (
+                <SplashScreen onFinish={handleSplashFinish} />
+              ) : (
+                <AppNavigator />
+              )}
+            </AuthProvider>
+          </NotificationProvider>
+        </LanguageProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
+
+// Register the main component
+AppRegistry.registerComponent(appName, () => App);

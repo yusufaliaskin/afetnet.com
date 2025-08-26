@@ -1,6 +1,6 @@
-# AfetLink - Afet Yönetim ve İletişim Uygulaması
+# AfetNet - Afet Yönetim ve İletişim Uygulaması
 
-**AfetLink**, afet durumlarında güvenli iletişim ve bilgi paylaşımını sağlayan kapsamlı bir mobil uygulamadır. Gerçek zamanlı deprem verileri, aile üyesi takibi, acil durum bildirimleri ve topluluk destekli bilgi paylaşımı özellikleri sunar.
+**AfetNet**, afet durumlarında güvenli iletişim ve bilgi paylaşımını sağlayan kapsamlı bir mobil uygulamadır. Gerçek zamanlı deprem verileri, aile üyesi takibi, acil durum bildirimleri ve topluluk destekli bilgi paylaşımı özellikleri sunar.
 
 ## 🚀 Özellikler
 
@@ -30,8 +30,8 @@
 
 ### 1. Projeyi Klonlayın
 ```bash
-git clone https://github.com/kullaniciadi/afetlink.git
-cd afetlink
+git clone https://github.com/kullaniciadi/afetnet.git
+cd afetnet
 ```
 
 ### 2. Bağımlılıkları Yükleyin
@@ -106,7 +106,7 @@ npm run web
 ## 🏗️ Proje Yapısı
 
 ```
-afetlink/
+afetnet/
 ├── src/
 │   ├── components/          # Yeniden kullanılabilir bileşenler
 │   ├── contexts/           # React Context providers
@@ -179,7 +179,7 @@ Bu proje [MIT Lisansı](LICENSE) altında lisanslanmıştır.
 ```
 MIT License
 
-Copyright (c) 2024 AfetLink
+Copyright (c) 2024 AfetNet
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -203,34 +203,43 @@ SOFTWARE.
 ## 📞 İletişim
 
 - **Proje Sahibi**: [Yusuf Ali Aşkın](mailto:yusufali@example.com)
-- **GitHub**: [https://github.com/kullaniciadi/afetlink](https://github.com/kullaniciadi/afetlink)
-- **Website**: [https://afetlink.com](https://afetlink.com)
-- **Destek**: [support@afetlink.com](mailto:support@afetlink.com)
+- **GitHub**: [https://github.com/kullaniciadi/afetnet](https://github.com/kullaniciadi/afetnet)
+- **Website**: [https://afetnet.com](https://afetnet.com)
+- **Destek**: [support@afetnet.com](mailto:support@afetnet.com)
 
 ## 🔄 Sürüm Geçmişi
 
-### v1.0.0 (2024-01-15)
-- ✨ İlk stabil sürüm
-- 🚀 Temel afet yönetimi özellikleri
-- 📱 Android ve iOS desteği
-- 🌐 Web platform desteği
+### v0.2.1 Beta (Mevcut Sürüm)
+- 🧪 Beta geliştirme aşaması
+- 📱 Temel mobil uygulama özellikleri
+- 🏢 Kuruluş logoları entegrasyonu (AFAD, MGM, OGM, MTA)
+- 🎨 Modern UI/UX tasarımı
 - 🌍 Çok dilli destek (TR/EN)
+- 📊 Temel haber akışı ve filtreleme
 
-### v0.9.0 (2024-01-01)
-- 🧪 Beta sürüm
-- 🔧 Performans iyileştirmeleri
-- 🐛 Bug düzeltmeleri
-- 📊 Analytics entegrasyonu
+### Gelecek Sürümler (Planlanan)
 
-### v0.8.0 (2023-12-15)
-- 🎨 UI/UX iyileştirmeleri
-- 🔐 Güvenlik güncellemeleri
-- 📡 API optimizasyonları
-- 🗺️ Harita özellikleri
+#### v0.3.0 (Yakında)
+- 🔧 Backend API entegrasyonu
+- 🔐 Kullanıcı kimlik doğrulama sistemi
+- 💾 Veritabanı bağlantısı
+- 📡 Gerçek zamanlı veri senkronizasyonu
+
+#### v0.4.0
+- 🗺️ Gelişmiş harita özellikleri
+- 📍 Konum tabanlı bildirimler
+- 👥 Aile üyesi takip sistemi
+- 🚨 Acil durum bildirimleri
+
+#### v1.0.0 (Hedef)
+- ✨ Tam özellikli stabil sürüm
+- 🌐 Web platform desteği
+- 📊 Gelişmiş analytics
+- 🔄 Offline çalışma desteği
 
 ---
 
-**Not**: Bu proje aktif olarak geliştirilmektedir. Güncellemeler ve yeni özellikler için [GitHub Releases](https://github.com/kullaniciadi/afetlink/releases) sayfasını takip edin.
+**Not**: Bu proje aktif olarak geliştirilmektedir. Güncellemeler ve yeni özellikler için [GitHub Releases](https://github.com/kullaniciadi/afetnet/releases) sayfasını takip edin.
 
 ## 🙏 Teşekkürler
 
@@ -240,4 +249,4 @@ SOFTWARE.
 - [Supabase](https://supabase.com/) - Backend servisleri
 - [Mapbox](https://www.mapbox.com/) - Harita servisleri
 
-**AfetLink ile güvenli kalın! 🛡️**
+**AfetNet ile güvenli kalın! 🛡️**

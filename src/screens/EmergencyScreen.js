@@ -15,7 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import * as Location from 'expo-location';
-import Header from '../components/Header';
+import StatusBar from '../components/StatusBar';
 
 const EmergencyScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
@@ -172,12 +172,13 @@ const EmergencyScreen = ({ navigation }) => {
   
   return (
     <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.colors.background }]}>
-      {/* Header */}
-      <Header 
+      {/* Status Bar */}
+      <StatusBar 
         title="Acil Durum Bildir"
-        showBackButton={true}
+        showSearch={false}
+        showNotifications={false}
+        showBack={true}
         onBackPress={() => navigation.goBack()}
-        showNotification={false}
       />
       
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>

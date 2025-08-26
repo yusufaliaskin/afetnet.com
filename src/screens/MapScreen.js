@@ -14,10 +14,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import earthquakeService from '../services/earthquakeService';
-import Header from '../components/Header';
+import StatusBar from '../components/StatusBar';
 
-// Web için Leaflet import'ları - sadece web platformunda
+// Web platformu için react-leaflet kullan
 let MapContainer, TileLayer, Marker, Popup, L;
+let MapView, RNMarker, PROVIDER_GOOGLE;
+
 if (Platform.OS === 'web') {
   const leaflet = require('react-leaflet');
   MapContainer = leaflet.MapContainer;
@@ -42,6 +44,17 @@ if (Platform.OS === 'web') {
       iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
       shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
     });
+  }
+} else if (Platform.OS === 'android' || Platform.OS === 'ios') {
+  // Mobil platformlar için react-native-maps kullan
+  try {
+    const maps = require('react-native-maps');
+    MapView = maps.default;
+    RNMarker = maps.Marker;
+    PROVIDER_GOOGLE = maps.PROVIDER_GOOGLE;
+    console.log('React Native Maps loaded successfully for mobile in MapScreen');
+  } catch (error) {
+    console.log('React Native Maps not available in MapScreen:', error);
   }
 }
 
@@ -264,9 +277,10 @@ const MapScreen = () => {
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background, paddingTop: insets.top }]}>
-      {/* Header */}
-      <Header 
+      {/* Status Bar */}
+      <StatusBar 
         title="Deprem Haritası"
+        showNotificationButton={true}
         customRightComponent={
           <View style={styles.headerRight}>
             {lastUpdateTime && (
@@ -369,50 +383,37 @@ const MapScreen = () => {
             ))}
           </MapContainer>
         ) : (
-          <View style={styles.mobileMapContainer}>
-            <View style={[styles.mobileHeader, { backgroundColor: theme.colors.surface }]}>
-              <Text style={[styles.mobileHeaderText, { color: theme.colors.text }]}>
-                Yakın Depremler ({earthquakes.length})
-              </Text>
-              <Text style={[styles.mobileSubText, { color: theme.colors.text }]}>
-                Deprem konumları listesi
-              </Text>
-            </View>
-            <View style={styles.earthquakeList}>
-              {earthquakes.slice(0, 10).map((earthquake) => (
-                <TouchableOpacity
-                  key={earthquake.id}
-                  style={[styles.earthquakeItem, { backgroundColor: theme.colors.background }]}
-                  onPress={() => showEarthquakeDetails(earthquake)}
-                >
-                  <View style={[
-                    styles.magnitudeIndicator,
-                    { backgroundColor: getEarthquakeColor(earthquake.magnitude) }
-                  ]}>
-                    <Text style={styles.magnitudeText}>{earthquake.magnitude}</Text>
-                  </View>
-                  <View style={styles.earthquakeInfo}>
-                    <Text style={[styles.earthquakeLocation, { color: theme.colors.text }]} numberOfLines={1}>
-                      {earthquake.location || earthquake.region || 'Bilinmiyor'}
-                    </Text>
-                    <Text style={[styles.earthquakeTime, { color: theme.colors.text }]}>
-                      {new Date(earthquake.time).toLocaleString('tr-TR', {
-                        year: 'numeric',
-                        month: '2-digit',
-                        day: '2-digit',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </Text>
-                    <Text style={[styles.earthquakeDepth, { color: theme.colors.text }]}>
-                      Derinlik: {earthquake.depth} km {earthquake.source ? `• ${earthquake.source}` : ''}
-                    </Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={20} color={theme.colors.text} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
+          <MapView
+            style={styles.mapContainer}
+            provider={PROVIDER_GOOGLE}
+            initialRegion={{
+              latitude: userLocation?.latitude || 39.9334,
+              longitude: userLocation?.longitude || 32.8597,
+              latitudeDelta: 5.0,
+              longitudeDelta: 5.0,
+            }}
+            showsUserLocation={true}
+            showsMyLocationButton={false}
+            zoomEnabled={true}
+            scrollEnabled={true}
+            rotateEnabled={true}
+            pitchEnabled={true}
+          >
+            {/* Deprem marker'ları */}
+            {earthquakes.map((earthquake) => (
+              <RNMarker
+                key={earthquake.id}
+                coordinate={{
+                  latitude: earthquake.latitude,
+                  longitude: earthquake.longitude,
+                }}
+                title={`M${earthquake.magnitude} Deprem`}
+                description={`${earthquake.location || earthquake.region || 'Bilinmiyor'} - Derinlik: ${earthquake.depth} km`}
+                pinColor={getEarthquakeColor(earthquake.magnitude)}
+                onPress={() => showEarthquakeDetails(earthquake)}
+              />
+            ))}
+          </MapView>
         )}
       </View>
 
@@ -426,32 +427,7 @@ const MapScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* Legend */}
-      <View style={[styles.legend, { backgroundColor: theme.colors.surface }]}>
-        <Text style={[styles.legendTitle, { color: theme.colors.text }]}>Deprem Büyüklüğü</Text>
-        <View style={styles.legendItems}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: '#34C759' }]} />
-            <Text style={[styles.legendText, { color: theme.colors.text }]}>{'< 3.0'}</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: '#FFCC00' }]} />
-            <Text style={[styles.legendText, { color: theme.colors.text }]}>3.0-4.0</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: '#FF9500' }]} />
-            <Text style={[styles.legendText, { color: theme.colors.text }]}>4.0-5.0</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: '#FF3B30' }]} />
-            <Text style={[styles.legendText, { color: theme.colors.text }]}>5.0-6.0</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendColor, { backgroundColor: '#8E4EC6' }]} />
-            <Text style={[styles.legendText, { color: theme.colors.text }]}>6.0+</Text>
-          </View>
-        </View>
-      </View>
+
 
       {/* Loading Overlay */}
       {loading && (
@@ -470,7 +446,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -486,73 +461,11 @@ const styles = StyleSheet.create({
   mapContainer: {
     flex: 1,
   },
-  mobileMapContainer: {
-    flex: 1,
-  },
-  mobileHeader: {
-    padding: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
-  },
-  mobileHeaderText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 5,
-  },
-  mobileSubText: {
-    fontSize: 14,
-    opacity: 0.7,
-  },
-  earthquakeList: {
-    flex: 1,
-    padding: 10,
-  },
-  earthquakeItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 15,
-    marginVertical: 5,
-    borderRadius: 10,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.22,
-    shadowRadius: 2.22,
-  },
-  magnitudeIndicator: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 15,
-  },
-  magnitudeText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  earthquakeInfo: {
-    flex: 1,
-  },
-  earthquakeLocation: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 3,
-  },
-  earthquakeTime: {
-    fontSize: 14,
-    opacity: 0.7,
-    marginBottom: 2,
-  },
-  earthquakeDepth: {
-    fontSize: 13,
-    opacity: 0.6,
-  },
+
   controls: {
     position: 'absolute',
     right: 20,
-    bottom: 120,
+    bottom: 20,
   },
   controlButton: {
     width: 50,
@@ -566,40 +479,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
   },
-  legend: {
-    position: 'absolute',
-    bottom: 20,
-    left: 20,
-    padding: 15,
-    borderRadius: 10,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  legendTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  legendItems: {
-    flexDirection: 'column',
-  },
-  legendItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 5,
-  },
-  legendColor: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginRight: 8,
-  },
-  legendText: {
-    fontSize: 12,
-  },
+
   loadingOverlay: {
     position: 'absolute',
     top: 0,
