@@ -1,25 +1,13 @@
 import axios from 'axios';
 
-const AFAD_API_BASE_URL = 'https://deprem.afad.gov.tr';
-const AFAD_EVENT_FILTER_URL = 'https://deprem.afad.gov.tr/EventData/GetEventsByFilter';
-const KANDILLI_API_URL = 'http://www.koeri.boun.edu.tr/scripts/lst0.asp';
-const KANDILLI_JSON_URL = 'http://www.koeri.boun.edu.tr/scripts/lasteq.asp';
-const TADAS_AFAD_URL = 'https://tadas.afad.gov.tr/api/earthquakes';
-
 // Kandilli Rasathanesi API - Ücretsiz ve canlı güncellenen
 const KANDILLI_LIVE_API = 'https://api.orhanaydogdu.com.tr/deprem/kandilli/live';
 const KANDILLI_ARCHIVE_API = 'https://api.orhanaydogdu.com.tr/deprem/kandilli/archive';
+const KANDILLI_API_URL = 'http://www.koeri.boun.edu.tr/scripts/lst0.asp';
 
 class EarthquakeService {
   constructor() {
-    this.apiClient = axios.create({
-      baseURL: AFAD_API_BASE_URL,
-      timeout: 15000,
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-    });
+    // AFAD API client kaldırıldı, sadece Kandilli kullanılıyor
   }
 
   /**
@@ -34,56 +22,7 @@ class EarthquakeService {
            String(date.getSeconds()).padStart(2, '0');
   }
 
-  /**
-   * Belirli tarih aralığındaki deprem verilerini getirir
-   * @param {Date} startDate - Başlangıç tarihi
-   * @param {Date} endDate - Bitiş tarihi
-   * @param {number} skip - Atlanacak kayıt sayısı (pagination için)
-   * @param {number} take - Alınacak kayıt sayısı
-   * @param {number} minMagnitude - Minimum büyüklük
-   * @returns {Promise<Array>} Deprem verileri dizisi
-   */
-  async getEarthquakesByDateRange(startDate, endDate, skip = 0, take = 100, minMagnitude = 0) {
-    try {
-      const eventFilter = {
-        EventSearchFilterList: [
-          { FilterType: 8, Value: startDate.toISOString() },
-          { FilterType: 9, Value: endDate.toISOString() }
-        ],
-        Skip: skip,
-        Take: take,
-        SortDescriptor: { field: 'eventDate', dir: 'desc' }
-      };
 
-      const response = await axios.post(AFAD_EVENT_FILTER_URL, eventFilter, {
-        timeout: 15000,
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-      });
-
-      if (response.data && response.data.Data && Array.isArray(response.data.Data)) {
-        console.log('AFAD API\'sinden başarıyla veri alındı:', response.data.Data.length, 'deprem');
-        
-        // Minimum büyüklük filtresi uygula
-        const filteredData = response.data.Data.filter(event => 
-          parseFloat(event.Magnitude) >= minMagnitude
-        );
-        
-        return {
-          data: this.formatNewEarthquakeData(filteredData),
-          totalCount: response.data.TotalCount || filteredData.length,
-          hasMore: (skip + take) < (response.data.TotalCount || 0)
-        };
-      }
-      
-      throw new Error('API\'den veri alınamadı');
-    } catch (error) {
-      console.error('AFAD API bağlantı hatası:', error.message);
-      throw new Error('Veriler çekilemiyor. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.');
-    }
-  }
 
   /**
    * Kandilli Rasathanesi Live API'sinden canlı deprem verilerini çeker
@@ -298,30 +237,15 @@ class EarthquakeService {
   }
 
   /**
-   * Son deprem verilerini getirir (Kandilli Live API öncelikli)
+   * Son deprem verilerini getirir (sadece Kandilli API'lerini kullanır)
    * @param {number} limit - Getirilecek deprem sayısı (varsayılan: 50)
    * @param {number} minMagnitude - Minimum büyüklük (varsayılan: 0)
    * @returns {Promise<Array>} Deprem verileri dizisi
    */
   async getLatestEarthquakes(limit = 50, minMagnitude = 0) {
     try {
-      // 1. Öncelik: AFAD API'sini dene
-      console.log('Ana kaynak AFAD API deneniyor...');
-      try {
-        const endDate = new Date();
-        const startDate = new Date(endDate.getTime() - (24 * 60 * 60 * 1000)); // 1 gün öncesi
-        
-        const result = await this.getEarthquakesByDateRange(startDate, endDate, 0, limit, minMagnitude);
-        if (result && result.data && result.data.length > 0) {
-          console.log('AFAD API verisi kullanılıyor:', result.data.length, 'deprem');
-          return result.data;
-        }
-      } catch (afadError) {
-        console.log('AFAD API başarısız:', afadError.message);
-      }
-      
-      // 2. Yedek Kaynak 1: Kandilli Rasathanesi
-      console.log('Yedek kaynak Kandilli Rasathanesi deneniyor...');
+      // 1. Öncelik: Kandilli Rasathanesi Live API
+      console.log('Ana kaynak Kandilli Rasathanesi deneniyor...');
       try {
         const kandilliData = await this.getKandilliLiveEarthquakes(limit);
         
@@ -340,8 +264,8 @@ class EarthquakeService {
         console.log('Kandilli API başarısız:', kandilliError.message);
       }
       
-      // 3. Yedek Kaynak 2: Kandilli Fallback (HTML parsing)
-      console.log('İkinci yedek kaynak Kandilli Fallback deneniyor...');
+      // 2. Yedek Kaynak: Kandilli Fallback (HTML parsing)
+      console.log('Yedek kaynak Kandilli Fallback deneniyor...');
       try {
         const fallbackData = await this.getKandilliEarthquakesFallback(limit);
         
@@ -359,11 +283,11 @@ class EarthquakeService {
         console.log('Kandilli Fallback başarısız:', fallbackError.message);
       }
       
-      // Tüm kaynaklar başarısız
-      throw new Error('Tüm veri kaynakları başarısız oldu');
+      // Tüm Kandilli kaynakları başarısız
+      throw new Error('Tüm Kandilli veri kaynakları başarısız oldu');
       
     } catch (error) {
-      console.error('Tüm API\'ler başarısız:', error.message);
+      console.error('Tüm Kandilli API\'leri başarısız:', error.message);
       
       // Gerçek API hatası durumunda hata fırlat
       throw new Error('Veriler çekilemiyor. Lütfen internet bağlantınızı kontrol edin ve tekrar deneyin.');
@@ -430,141 +354,9 @@ class EarthquakeService {
     return mockData.sort((a, b) => new Date(b.properties.date) - new Date(a.properties.date));
   }
 
-  /**
-   * Belirli bir bölgedeki depremleri getirir
-   * @param {number} lat - Enlem
-   * @param {number} lon - Boylam
-   * @param {number} radius - Yarıçap (km)
-   * @param {number} limit - Getirilecek deprem sayısı
-   * @returns {Promise<Array>} Deprem verileri dizisi
-   */
-  async getEarthquakesByLocation(lat, lon, radius = 100, limit = 20) {
-    try {
-      // Geçici mock data - API bağlantı sorunu nedeniyle
-      const mockData = {
-        features: [
-          {
-            properties: {
-              mag: 4.2,
-              eventid: '12350',
-              location: 'İSTANBUL MERKEZ (İSTANBUL)',
-              date: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-              latitude: lat + (Math.random() - 0.5) * 0.1,
-              longitude: lon + (Math.random() - 0.5) * 0.1,
-              depth: 8.5
-            }
-          },
-          {
-            properties: {
-              mag: 3.1,
-              eventid: '12351',
-              location: 'BÖLGE YAKIN (ŞEHIR)',
-              date: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
-              latitude: lat + (Math.random() - 0.5) * 0.2,
-              longitude: lon + (Math.random() - 0.5) * 0.2,
-              depth: 12.3
-            }
-          }
-        ]
-      };
 
-      return this.formatEarthquakeData(mockData.features.slice(0, limit));
-    } catch (error) {
-      console.error('Mock data hatası:', error);
-      throw new Error('Bölgesel deprem verileri alınamadı');
-    }
-  }
 
-  /**
-   * Belirli bir tarih aralığındaki depremleri getirir
-   * @param {string} startDate - Başlangıç tarihi (YYYY-MM-DD)
-   * @param {string} endDate - Bitiş tarihi (YYYY-MM-DD)
-   * @param {number} minMagnitude - Minimum büyüklük
-   * @returns {Promise<Array>} Deprem verileri dizisi
-   */
-  async getEarthquakesByDateRange(startDate, endDate, minMagnitude = 0) {
-    try {
-      // Geçici mock data - API bağlantı sorunu nedeniyle
-      const mockData = {
-        features: [
-          {
-            properties: {
-              mag: 3.8,
-              eventid: '12352',
-              location: 'ANKARA MERKEZ (ANKARA)',
-              date: new Date(startDate).toISOString(),
-              latitude: 39.9334,
-              longitude: 32.8597,
-              depth: 10.2
-            }
-          },
-          {
-            properties: {
-              mag: 2.9,
-              eventid: '12353',
-              location: 'İZMİR MERKEZ (İZMİR)',
-              date: new Date(endDate).toISOString(),
-              latitude: 38.4192,
-              longitude: 27.1287,
-              depth: 7.8
-            }
-          }
-        ]
-      };
 
-      return this.formatEarthquakeData(mockData.features.filter(f => f.properties.mag >= minMagnitude));
-    } catch (error) {
-      console.error('Mock data hatası:', error);
-      throw new Error('Tarih aralığındaki deprem verileri alınamadı');
-    }
-  }
-
-  /**
-   * Yeni AFAD API formatındaki deprem verilerini formatlar
-   * @param {Array} rawData - Ham deprem verileri
-   * @returns {Array} Formatlanmış deprem verileri
-   */
-  formatNewEarthquakeData(rawData) {
-    return rawData.map(event => {
-      const eventTime = new Date(event.EventDate);
-      const magnitude = parseFloat(event.Magnitude) || 0;
-      const isAftershock = event.EventType === 'aftershock' || magnitude < 4.0;
-      
-      return {
-        id: event.EventID || Math.random().toString(36).substr(2, 9),
-        magnitude: magnitude,
-        location: event.LocationName || 'Bilinmeyen Konum',
-        depth: parseFloat(event.Depth) || 0,
-        time: eventTime,
-        coordinates: {
-          latitude: parseFloat(event.Latitude) || 0,
-          longitude: parseFloat(event.Longitude) || 0
-        },
-        latitude: parseFloat(event.Latitude) || 0,
-        longitude: parseFloat(event.Longitude) || 0,
-        source: 'AFAD',
-        severity: this.calculateSeverity(magnitude),
-        distance: this.formatTimeAgo(eventTime),
-        region: event.Province || event.District || 'Türkiye',
-        color: this.getSeverityColor(magnitude),
-        isAftershock: isAftershock,
-        type: isAftershock ? 'Artçı Deprem' : 'Ana Deprem',
-        formattedTime: eventTime.toLocaleString('tr-TR', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
-          hour: '2-digit',
-          minute: '2-digit',
-          second: '2-digit'
-        }),
-        formattedDate: eventTime.toLocaleDateString('tr-TR', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric'
-        })
-      };
-    });
-  }
 
   /**
    * Eski API formatındaki deprem verilerini formatlar (fallback için)
@@ -591,7 +383,7 @@ class EarthquakeService {
         },
         latitude: parseFloat(properties.latitude) || (earthquake.geometry ? earthquake.geometry.coordinates[1] : 0),
         longitude: parseFloat(properties.longitude) || (earthquake.geometry ? earthquake.geometry.coordinates[0] : 0),
-        source: 'AFAD',
+        source: 'Kandilli',
         severity: this.calculateSeverity(magnitude),
         distance: this.formatTimeAgo(eventTime),
         region: properties.region || 'Türkiye',

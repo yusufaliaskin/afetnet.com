@@ -61,16 +61,16 @@ const ForgotPasswordScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.content}>
-          <Text style={styles.title}>Forgot password</Text>
+          <Text style={styles.title}>Şifremi Unuttum</Text>
           <Text style={styles.subtitle}>
-            Please enter your email to reset the password
+            Şifrenizi sıfırlamak için lütfen e-posta adresinizi girin
           </Text>
 
           <View style={styles.formContainer}>
-            <Text style={styles.label}>Your Email</Text>
+            <Text style={styles.label}>E-posta Adresiniz</Text>
             <TextInput
               style={styles.input}
-              placeholder="contact@dscodetech.com"
+              placeholder="ornek@email.com"
               value={email}
               onChangeText={setEmail}
               keyboardType="email-address"
@@ -84,7 +84,7 @@ const ForgotPasswordScreen = ({ navigation }) => {
               disabled={loading}
             >
               <Text style={styles.resetButtonText}>
-                {loading ? 'Gönderiliyor...' : 'Reset Password'}
+                {loading ? 'Gönderiliyor...' : 'Şifreyi Sıfırla'}
               </Text>
             </TouchableOpacity>
           </View>

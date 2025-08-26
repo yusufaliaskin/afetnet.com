@@ -25,10 +25,28 @@ import { supabase } from '../lib/supabase';
 
 const ProfileScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
-  const { width: screenWidth } = Dimensions.get('window');
+  const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
   const { t } = useLanguage();
   const { theme } = useTheme();
   const { user, logout, updateUserProfile } = useAuth();
+  
+  // Responsive design calculations
+  const isTablet = screenWidth >= 768;
+  const isSmallScreen = screenWidth < 375;
+  const cardWidth = isTablet ? '31%' : screenWidth < 600 ? '48%' : '32%';
+  const fontSize = {
+    small: isSmallScreen ? 11 : 12,
+    medium: isSmallScreen ? 13 : 14,
+    large: isSmallScreen ? 15 : 16,
+    xlarge: isSmallScreen ? 17 : 18
+  };
+  const spacing = {
+    xs: isSmallScreen ? 4 : 6,
+    sm: isSmallScreen ? 8 : 12,
+    md: isSmallScreen ? 12 : 16,
+    lg: isSmallScreen ? 16 : 20,
+    xl: isSmallScreen ? 20 : 24
+  };
   
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -56,6 +74,7 @@ const ProfileScreen = ({ navigation }) => {
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showAddMember, setShowAddMember] = useState(false);
   const [showEditMemberModal, setShowEditMemberModal] = useState(false);
+  const [showRelationshipPicker, setShowRelationshipPicker] = useState(false);
   const [editingMember, setEditingMember] = useState(null);
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   
@@ -352,26 +371,54 @@ const ProfileScreen = ({ navigation }) => {
     setShowAddMember(true);
   };
 
-  const handleSaveMember = async () => {
-    if (!memberForm.name.trim() || !memberForm.surname.trim()) {
-      Alert.alert('Hata', 'Ad ve soyad alanları zorunludur.');
-      return;
+  const validateMemberForm = () => {
+    const errors = [];
+    
+    // Ad validasyonu
+    if (!memberForm.name.trim()) {
+      errors.push('• Ad alanı zorunludur');
+    } else if (memberForm.name.trim().length < 2) {
+      errors.push('• Ad en az 2 karakter olmalıdır');
+    } else if (!/^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$/.test(memberForm.name.trim())) {
+      errors.push('• Ad sadece harf içermelidir');
     }
-
-    if (!memberForm.relation.trim()) {
-      Alert.alert('Hata', 'Yakınlık derecesi zorunludur.');
-      return;
+    
+    // Soyad validasyonu
+    if (!memberForm.surname.trim()) {
+      errors.push('• Soyad alanı zorunludur');
+    } else if (memberForm.surname.trim().length < 2) {
+      errors.push('• Soyad en az 2 karakter olmalıdır');
+    } else if (!/^[a-zA-ZğüşıöçĞÜŞİÖÇ\s]+$/.test(memberForm.surname.trim())) {
+      errors.push('• Soyad sadece harf içermelidir');
     }
-
+    
+    // Yakınlık derecesi validasyonu
+    if (!memberForm.relation) {
+      errors.push('• Yakınlık derecesi seçimi zorunludur');
+    }
+    
+    // Telefon validasyonu
     if (!memberForm.phone.trim()) {
-      Alert.alert('Hata', 'Telefon numarası zorunludur.');
-      return;
+      errors.push('• Telefon numarası zorunludur');
+    } else {
+      const phoneRegex = /^(\+90|0)?\s?[5-9][0-9]{2}\s?[0-9]{3}\s?[0-9]{2}\s?[0-9]{2}$/;
+      if (!phoneRegex.test(memberForm.phone.trim())) {
+        errors.push('• Geçerli bir telefon numarası girin (5XX XXX XX XX)');
+      }
     }
+    
+    return errors;
+  };
 
-    // Telefon format kontrolü
-    const phoneRegex = /^(\+90|0)?\s?[5-9][0-9]{2}\s?[0-9]{3}\s?[0-9]{2}\s?[0-9]{2}$/;
-    if (!phoneRegex.test(memberForm.phone)) {
-      Alert.alert('Hata', 'Geçerli bir telefon numarası giriniz. (5XX XXX XX XX)');
+  const handleSaveMember = async () => {
+    // Form validasyonu
+    const validationErrors = validateMemberForm();
+    if (validationErrors.length > 0) {
+      Alert.alert(
+        'Form Hatası', 
+        validationErrors.join('\n'),
+        [{ text: 'Tamam' }]
+      );
       return;
     }
 
@@ -394,7 +441,7 @@ const ProfileScreen = ({ navigation }) => {
           throw error;
         }
 
-        Alert.alert('Başarılı', 'Aile üyesi bilgileri güncellendi.');
+        Alert.alert('Başarılı', 'Aile üyesi bilgileri başarıyla güncellendi.');
       } else {
         // Yeni üye ekle
         const { error } = await supabase
@@ -413,7 +460,7 @@ const ProfileScreen = ({ navigation }) => {
           throw error;
         }
 
-        Alert.alert('Başarılı', 'Yeni aile üyesi eklendi.');
+        Alert.alert('Başarılı', 'Yeni aile üyesi başarıyla eklendi.');
       }
 
       // Aile üyelerini yeniden yükle
@@ -429,7 +476,11 @@ const ProfileScreen = ({ navigation }) => {
       });
     } catch (error) {
       console.error('Aile üyesi kaydetme hatası:', error);
-      Alert.alert('Hata', 'Aile üyesi kaydedilirken bir hata oluştu.');
+      Alert.alert(
+        'Hata', 
+        'Aile üyesi kaydedilirken bir hata oluştu. Lütfen tekrar deneyin.',
+        [{ text: 'Tamam' }]
+      );
     }
   };
 
@@ -525,7 +576,7 @@ const ProfileScreen = ({ navigation }) => {
   };
   
   return (
-    <View style={[styles.container, { paddingTop: insets.top, backgroundColor: theme.colors.background }]}>
+    <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
       <StatusBar 
         title="Afetnet.com"
         showSearch={false}
@@ -533,11 +584,15 @@ const ProfileScreen = ({ navigation }) => {
         onNotificationPress={() => navigation.navigate('Notifications')}
       />
       
-      <ScrollView style={[styles.scrollView, { backgroundColor: theme.colors.background }]} showsVerticalScrollIndicator={false}>
-        {/* User Profile Card */}
+      <ScrollView 
+        style={[styles.scrollView, { backgroundColor: theme.colors.background }]} 
+        contentContainerStyle={{ paddingTop: insets.top + 80 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Minimal User Profile Card */}
         <Animated.View 
           style={[
-            styles.modernProfileCard,
+            styles.minimalProfileCard,
             { backgroundColor: theme.colors.cardBackground },
             {
               opacity: fadeAnim,
@@ -550,57 +605,69 @@ const ProfileScreen = ({ navigation }) => {
             style={[styles.editIconButton, { backgroundColor: theme.colors.primary }]} 
             onPress={() => setShowEditProfile(true)}
           >
-            <Ionicons name="create-outline" size={20} color="#FFFFFF" />
+            <Ionicons name="create-outline" size={18} color="#FFFFFF" />
           </TouchableOpacity>
           
-          {/* Profile Content */}
-          <View style={styles.profileContent}>
-            {/* Profile Image */}
-            <View style={styles.profileImageSection}>
-              <View style={[styles.profileImageWrapper, { borderColor: theme.colors.primary }]}>
-                {userProfile.profileImage ? (
-                  <Image source={{ uri: userProfile.profileImage }} style={styles.profileImageLarge} />
-                ) : (
-                  <View style={[styles.profileImagePlaceholder, { backgroundColor: theme.colors.surface }]}>
-                    <Ionicons name="person" size={50} color={theme.colors.primary} />
-                  </View>
-                )}
-              </View>
+          {/* Compact Profile Content */}
+          <View style={styles.compactProfileContent}>
+            {/* Profile Image - Smaller */}
+            <View style={[styles.compactProfileImageWrapper, { borderColor: theme.colors.primary }]}>
+              {userProfile.profileImage ? (
+                <Image source={{ uri: userProfile.profileImage }} style={styles.compactProfileImage} />
+              ) : (
+                <View style={[styles.compactProfileImagePlaceholder, { backgroundColor: theme.colors.surface }]}>
+                  <Ionicons name="person" size={32} color={theme.colors.primary} />
+                </View>
+              )}
             </View>
             
-            {/* User Info */}
-            <View style={styles.userInfoMain}>
-              <Text style={[styles.userFullName, { color: theme.colors.text }]}>
+            {/* User Info - Compact */}
+            <View style={styles.compactUserInfo}>
+              <Text style={[styles.compactUserName, { color: theme.colors.text }]}>
                 {userProfile.firstName} {userProfile.lastName}
               </Text>
               
-              {/* User Email */}
-              <Text style={[styles.userEmail, { color: theme.colors.secondaryText }]}>
-                {userProfile.email || user?.email}
-              </Text>
-              
-              {/* Verification Status */}
-              <View style={[styles.verificationBadge, {
+              {/* Verification Status - Compact */}
+              <View style={[styles.compactVerificationBadge, {
                 backgroundColor: userProfile.isVerified 
                   ? 'rgba(52, 199, 89, 0.15)' 
                   : 'rgba(255, 149, 0, 0.15)'
               }]}>
                 <Ionicons 
                   name={userProfile.isVerified ? "checkmark-circle" : "alert-circle"} 
-                  size={16} 
+                  size={14} 
                   color={userProfile.isVerified ? "#34C759" : "#FF9500"} 
                 />
-                <Text style={[styles.verificationText, { 
+                <Text style={[styles.compactVerificationText, { 
                   color: userProfile.isVerified ? "#34C759" : "#FF9500" 
                 }]}>
-                  {userProfile.isVerified ? 'Doğrulanmış Kullanıcı' : 'Doğrulanmamış Kullanıcı'}
+                  {userProfile.isVerified ? 'Doğrulanmış' : 'Doğrulanmamış'}
                 </Text>
               </View>
             </View>
           </View>
+          
+          {/* Family Members Section - Integrated */}
+          <View style={styles.compactFamilySection}>
+            <View style={styles.compactFamilySectionHeader}>
+              <View style={styles.compactFamilyTitleContainer}>
+                <Ionicons name="people" size={18} color={theme.colors.primary} />
+                <Text style={[styles.compactFamilyTitle, { color: theme.colors.text }]}>Aile Üyeleri</Text>
+                <View style={[styles.familyCountBadge, { backgroundColor: theme.colors.primary }]}>
+                  <Text style={styles.familyCountText}>{familyMembers.length}</Text>
+                </View>
+              </View>
+              <TouchableOpacity 
+                style={[styles.compactAddButton, { backgroundColor: theme.colors.primary }]}
+                onPress={handleAddMember}
+              >
+                <Ionicons name="add" size={16} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
         </Animated.View>
         
-        {/* Family Members Section */}
+        {/* Detailed Family Members Section - Separate Card */}
         <Animated.View 
           style={[
             styles.sectionContainer,
@@ -614,46 +681,157 @@ const ProfileScreen = ({ navigation }) => {
           <View style={styles.sectionHeader}>
             <View style={styles.sectionTitleContainer}>
               <Ionicons name="people" size={24} color={theme.colors.primary} style={styles.sectionIcon} />
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>{t('familyMembers')}</Text>
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>Aile Üyeleri Detayları</Text>
             </View>
-            <TouchableOpacity 
-              style={[styles.addButton, { backgroundColor: theme.colors.primary }]}
-              onPress={handleAddMember}
-            >
-              <Ionicons name="add" size={20} color="#fff" />
-            </TouchableOpacity>
           </View>
           
-          {familyMembers.map((member) => (
-            <TouchableOpacity 
-               key={member.id} 
-               style={[styles.familyMemberItem, { backgroundColor: theme.colors.surface, borderBottomColor: theme.colors.border }]}
-               onPress={() => {
-                 setEditingMember(member);
-                 setShowEditMemberModal(true);
-               }}
-             >
-              <View style={styles.memberInfo}>
-                <View style={[styles.memberAvatar, { backgroundColor: theme.colors.primary }]}>
-                  <Text style={styles.memberInitial}>{member.initial}</Text>
-                </View>
-                <View style={styles.memberDetails}>
-                  <Text style={[styles.memberName, { color: theme.colors.text }]}>{member.name}</Text>
-                  <Text style={[styles.memberRelation, { color: theme.colors.secondaryText }]}>{member.relation}</Text>
-                  <View style={styles.memberStatusContainer}>
-                    <View style={[styles.statusDot, { backgroundColor: member.statusColor }]} />
-                    <Text style={[styles.statusText, { color: theme.colors.secondaryText }]}>⏰ {member.lastSeen}</Text>
+          {familyMembers.length > 0 ? (
+            <View style={styles.familyMembersGrid}>
+              {familyMembers.map((member) => (
+                <View key={member.id} style={[
+                  styles.modernFamilyCard, 
+                  { 
+                    backgroundColor: theme.colors.surface,
+                    width: cardWidth,
+                    padding: spacing.md
+                  }
+                ]}>
+                  {/* Card Header */}
+                  <View style={styles.modernCardHeader}>
+                    <View style={[styles.modernMemberAvatar, { backgroundColor: theme.colors.primary + '20' }]}>
+                      <Text style={[styles.modernMemberInitial, { color: theme.colors.primary }]}>{member.initial}</Text>
+                    </View>
+                    <View style={styles.modernCardActions}>
+                      <TouchableOpacity 
+                        style={[styles.modernActionButton, { backgroundColor: theme.colors.primary + '15' }]}
+                        onPress={() => handleEditMember(member)}
+                      >
+                        <Ionicons name="create-outline" size={16} color={theme.colors.primary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity 
+                        style={[styles.modernActionButton, { backgroundColor: '#FF3B30' + '15' }]}
+                        onPress={() => handleDeleteMember(member.id)}
+                      >
+                        <Ionicons name="trash-outline" size={16} color="#FF3B30" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                  
+                  {/* Member Info */}
+                  <View style={styles.modernMemberInfo}>
+                    <Text style={[
+                      styles.modernMemberName, 
+                      { 
+                        color: theme.colors.text,
+                        fontSize: fontSize.large
+                      }
+                    ]} numberOfLines={1}>
+                      {member.name}
+                    </Text>
+                    <Text style={[
+                      styles.modernMemberRelation, 
+                      { 
+                        color: theme.colors.secondaryText,
+                        fontSize: fontSize.medium
+                      }
+                    ]} numberOfLines={1}>
+                      {member.relation}
+                    </Text>
+                    <Text style={[
+                      styles.modernMemberPhone, 
+                      { 
+                        color: theme.colors.primary,
+                        fontSize: fontSize.small
+                      }
+                    ]} numberOfLines={1}>
+                      {member.phone}
+                    </Text>
+                  </View>
+                  
+                  {/* Status Badge */}
+                  <View style={[styles.modernStatusBadge, { backgroundColor: member.statusColor + '20' }]}>
+                    <View style={[styles.modernStatusDot, { backgroundColor: member.statusColor }]} />
+                    <Text style={[styles.modernStatusText, { color: member.statusColor }]} numberOfLines={1}>
+                      {member.status}
+                    </Text>
+                  </View>
+                  
+                  {/* Emergency Contact Badge */}
+                  {member.emergencyContact && (
+                    <View style={[styles.emergencyBadge, { backgroundColor: '#FF9500' + '20' }]}>
+                      <Ionicons name="warning" size={12} color="#FF9500" />
+                      <Text style={[styles.emergencyBadgeText, { color: '#FF9500' }]}>Acil İletişim</Text>
+                    </View>
+                  )}
+                  
+                  {/* Quick Actions */}
+                  <View style={styles.modernQuickActions}>
+                    <TouchableOpacity 
+                      style={[styles.modernQuickActionButton, { backgroundColor: theme.colors.primary }]}
+                      onPress={() => handleCallMember(member.phone)}
+                    >
+                      <Ionicons name="call" size={14} color="#FFFFFF" />
+                      <Text style={styles.modernQuickActionText}>Ara</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                      style={[styles.modernQuickActionButton, { backgroundColor: theme.colors.secondary || theme.colors.primary }]}
+                      onPress={() => handleLocationRequest(member.name)}
+                    >
+                      <Ionicons name="location" size={14} color="#FFFFFF" />
+                      <Text style={styles.modernQuickActionText}>Konum</Text>
+                    </TouchableOpacity>
                   </View>
                 </View>
+              ))}
+              
+              {/* Add Member Card */}
+              <TouchableOpacity 
+                style={[
+                  styles.modernAddMemberCard, 
+                  { 
+                    backgroundColor: theme.colors.surface, 
+                    borderColor: theme.colors.primary,
+                    width: cardWidth,
+                    padding: spacing.md
+                  }
+                ]}
+                onPress={handleAddMember}
+              >
+                <View style={[styles.modernAddIcon, { backgroundColor: theme.colors.primary + '20' }]}>
+                  <Ionicons name="add" size={24} color={theme.colors.primary} />
+                </View>
+                <Text style={[
+                  styles.modernAddText, 
+                  { 
+                    color: theme.colors.primary,
+                    fontSize: fontSize.medium
+                  }
+                ]}>Yeni Üye Ekle</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <View style={styles.emptyFamilyContainer}>
+              <View style={[styles.emptyIconContainer, { backgroundColor: theme.colors.surface }]}>
+                <Ionicons name="people-outline" size={48} color={theme.colors.secondaryText} />
               </View>
-              <Ionicons name="chevron-forward" size={20} color={theme.colors.secondaryText} />
-            </TouchableOpacity>
-          ))}
+              <Text style={[styles.emptyFamilyText, { color: theme.colors.text }]}>Henüz aile üyesi eklenmemiş</Text>
+              <Text style={[styles.emptyFamilySubtext, { color: theme.colors.secondaryText }]}>Aile üyelerinizi ekleyerek onları takip edebilir ve acil durumlarda iletişim kurabilirsiniz</Text>
+              <TouchableOpacity 
+                style={[styles.emptyAddButton, { backgroundColor: theme.colors.primary }]}
+                onPress={handleAddMember}
+              >
+                <Ionicons name="add" size={20} color="#FFFFFF" />
+                <Text style={styles.emptyAddButtonText}>İlk Aile Üyeni Ekle</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           
-          <TouchableOpacity onPress={handleViewAllMembers} style={[styles.viewAllButton, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-            <Text style={[styles.viewAllText, { color: theme.colors.primary }]}>Tüm Aile Üyelerini Görüntüle</Text>
-            <Ionicons name="chevron-forward" size={16} color={theme.colors.primary} />
-          </TouchableOpacity>
+          {familyMembers.length > 0 && (
+            <TouchableOpacity onPress={handleViewAllMembers} style={[styles.viewAllButton, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+              <Text style={[styles.viewAllText, { color: theme.colors.primary }]}>Tüm Aile Üyelerini Görüntüle</Text>
+              <Ionicons name="chevron-forward" size={16} color={theme.colors.primary} />
+            </TouchableOpacity>
+          )}
         </Animated.View>
         
 
@@ -1017,34 +1195,43 @@ const ProfileScreen = ({ navigation }) => {
 
                <View style={styles.formFieldFull}>
                  <Text style={[styles.formLabel, { color: theme.colors.text }]}>Yakınlık Derecesi</Text>
-                 <View style={styles.relationshipButtons}>
-                   {['Eş', 'Çocuk', 'Anne', 'Baba', 'Kardeş', 'Diğer'].map((relation) => (
-                     <TouchableOpacity
-                       key={relation}
-                       style={[
-                         styles.relationshipButton,
-                         {
-                           backgroundColor: memberForm.relation === relation 
-                             ? theme.colors.primary 
-                             : theme.colors.surface,
-                           borderColor: theme.colors.border
-                         }
-                       ]}
-                       onPress={() => setMemberForm({ ...memberForm, relation: relation })}
-                     >
-                       <Text style={[
-                         styles.relationshipButtonText,
-                         {
-                           color: memberForm.relation === relation 
-                             ? theme.colors.onPrimary 
-                             : theme.colors.text
-                         }
-                       ]}>
-                         {relation}
-                       </Text>
-                     </TouchableOpacity>
-                   ))}
-                 </View>
+                 <TouchableOpacity 
+                   style={[styles.relationshipDropdown, { 
+                     backgroundColor: theme.colors.surface, 
+                     borderColor: theme.colors.border 
+                   }]}
+                   onPress={() => setShowRelationshipPicker(true)}
+                 >
+                   <Text style={[styles.relationshipDropdownText, { 
+                     color: memberForm.relation ? theme.colors.text : theme.colors.secondaryText 
+                   }]}>
+                     {memberForm.relation || 'Yakınlık derecesi seçiniz'}
+                   </Text>
+                   <Ionicons name="chevron-down" size={20} color={theme.colors.secondaryText} />
+                 </TouchableOpacity>
+               </View>
+
+               {/* Acil Durum İletişim Checkbox */}
+               <View style={styles.formFieldFull}>
+                 <TouchableOpacity 
+                   style={styles.emergencyContactCheckbox}
+                   onPress={() => setMemberForm({ ...memberForm, emergencyContact: !memberForm.emergencyContact })}
+                 >
+                   <View style={[styles.checkbox, { 
+                     backgroundColor: memberForm.emergencyContact ? theme.colors.primary : 'transparent',
+                     borderColor: theme.colors.primary 
+                   }]}>
+                     {memberForm.emergencyContact && (
+                       <Ionicons name="checkmark" size={16} color="#FFFFFF" />
+                     )}
+                   </View>
+                   <Text style={[styles.checkboxLabel, { color: theme.colors.text }]}>
+                     Acil durum iletişim kişisi olarak belirle
+                   </Text>
+                 </TouchableOpacity>
+                 <Text style={[styles.checkboxHelpText, { color: theme.colors.secondaryText }]}>
+                   Bu kişi acil durumlarda öncelikli olarak aranacaktır
+                 </Text>
                </View>
              </View>
 
@@ -1062,6 +1249,105 @@ const ProfileScreen = ({ navigation }) => {
              
              <View style={styles.modalBottomSpacing} />
            </ScrollView>
+         </View>
+       </Modal>
+
+       {/* Relationship Picker Modal */}
+       <Modal
+         visible={showRelationshipPicker}
+         animationType="slide"
+         presentationStyle="pageSheet"
+         transparent={true}
+       >
+         <View style={styles.relationshipPickerOverlay}>
+           <View style={[styles.relationshipPickerContainer, { backgroundColor: theme.colors.cardBackground }]}>
+             <View style={[styles.relationshipPickerHeader, { borderBottomColor: theme.colors.border }]}>
+               <Text style={[styles.relationshipPickerTitle, { color: theme.colors.text }]}>Yakınlık Derecesi Seçin</Text>
+               <TouchableOpacity 
+                 style={styles.relationshipPickerCloseButton}
+                 onPress={() => setShowRelationshipPicker(false)}
+               >
+                 <Ionicons name="close" size={24} color={theme.colors.secondaryText} />
+               </TouchableOpacity>
+             </View>
+             
+             <ScrollView style={styles.relationshipPickerScrollView}>
+               {[
+                 { value: 'Eş', icon: 'heart', description: 'Evli olduğunuz kişi' },
+                 { value: 'Nişanlı', icon: 'heart-outline', description: 'Nişanlı olduğunuz kişi' },
+                 { value: 'Çocuk', icon: 'person', description: 'Oğlunuz veya kızınız' },
+                 { value: 'Anne', icon: 'woman', description: 'Anneniz' },
+                 { value: 'Baba', icon: 'man', description: 'Babanız' },
+                 { value: 'Kardeş', icon: 'people', description: 'Erkek veya kız kardeşiniz' },
+                 { value: 'Büyükanne', icon: 'woman-outline', description: 'Annenizin veya babanızın annesi' },
+                 { value: 'Büyükbaba', icon: 'man-outline', description: 'Annenizin veya babanızın babası' },
+                 { value: 'Teyze', icon: 'woman', description: 'Annenizin kız kardeşi' },
+                 { value: 'Dayı', icon: 'man', description: 'Annenizin erkek kardeşi' },
+                 { value: 'Hala', icon: 'woman', description: 'Babanızın kız kardeşi' },
+                 { value: 'Amca', icon: 'man', description: 'Babanızın erkek kardeşi' },
+                 { value: 'Kuzen', icon: 'people-outline', description: 'Amca, dayı, teyze veya hala çocuğu' },
+                 { value: 'Kayınvalide', icon: 'woman', description: 'Eşinizin annesi' },
+                 { value: 'Kayınpeder', icon: 'man', description: 'Eşinizin babası' },
+                 { value: 'Kayın', icon: 'people', description: 'Eşinizin kardeşi' },
+                 { value: 'Gelin', icon: 'woman', description: 'Oğlunuzun eşi' },
+                 { value: 'Damat', icon: 'man', description: 'Kızınızın eşi' },
+                 { value: 'Torun', icon: 'person-outline', description: 'Çocuğunuzun çocuğu' },
+                 { value: 'Arkadaş', icon: 'people-circle', description: 'Yakın arkadaşınız' },
+                 { value: 'Komşu', icon: 'home', description: 'Komşunuz' },
+                 { value: 'İş Arkadaşı', icon: 'briefcase', description: 'İş yerinden arkadaşınız' },
+                 { value: 'Diğer', icon: 'ellipsis-horizontal', description: 'Diğer yakınlık dereceleri' }
+               ].map((relation) => (
+                 <TouchableOpacity
+                   key={relation.value}
+                   style={[styles.relationshipPickerItem, {
+                     backgroundColor: memberForm.relation === relation.value 
+                       ? theme.colors.primary + '15' 
+                       : 'transparent',
+                     borderColor: memberForm.relation === relation.value 
+                       ? theme.colors.primary 
+                       : 'transparent'
+                   }]}
+                   onPress={() => {
+                     setMemberForm({ ...memberForm, relation: relation.value });
+                     setShowRelationshipPicker(false);
+                   }}
+                 >
+                   <View style={styles.relationshipPickerItemContent}>
+                     <View style={[styles.relationshipPickerIcon, {
+                       backgroundColor: memberForm.relation === relation.value 
+                         ? theme.colors.primary 
+                         : theme.colors.surface
+                     }]}>
+                       <Ionicons 
+                         name={relation.icon} 
+                         size={20} 
+                         color={memberForm.relation === relation.value 
+                           ? '#FFFFFF' 
+                           : theme.colors.primary
+                         } 
+                       />
+                     </View>
+                     <View style={styles.relationshipPickerTextContainer}>
+                       <Text style={[styles.relationshipPickerItemText, { 
+                         color: theme.colors.text,
+                         fontWeight: memberForm.relation === relation.value ? '600' : '400'
+                       }]}>
+                         {relation.value}
+                       </Text>
+                       <Text style={[styles.relationshipPickerItemDescription, { 
+                         color: theme.colors.secondaryText 
+                       }]}>
+                         {relation.description}
+                       </Text>
+                     </View>
+                   </View>
+                   {memberForm.relation === relation.value && (
+                     <Ionicons name="checkmark-circle" size={20} color={theme.colors.primary} />
+                   )}
+                 </TouchableOpacity>
+               ))}
+             </ScrollView>
+           </View>
          </View>
        </Modal>
      </View>
@@ -1095,13 +1381,30 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     minHeight: 320,
   },
+  minimalProfileCard: {
+    position: 'relative',
+    borderRadius: 20,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 6,
+    borderWidth: 0,
+    backgroundColor: '#FFFFFF',
+  },
   editIconButton: {
     position: 'absolute',
-    top: 16,
-    right: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    top: 12,
+    right: 12,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -1113,6 +1416,119 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
     zIndex: 1,
+  },
+  compactProfileContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  compactProfileImageWrapper: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: 'rgba(0, 122, 255, 0.3)',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+    backgroundColor: '#FAFBFC',
+  },
+  compactProfileImage: {
+    width: '100%',
+    height: '100%',
+  },
+  compactProfileImagePlaceholder: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 122, 255, 0.05)',
+  },
+  compactUserInfo: {
+    flex: 1,
+  },
+  compactUserName: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 8,
+    letterSpacing: 0.3,
+  },
+  compactVerificationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+  },
+  compactVerificationText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginLeft: 6,
+  },
+  compactFamilySection: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.08)',
+    paddingTop: 16,
+  },
+  compactFamilySectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  compactFamilyTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  compactFamilyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginLeft: 8,
+    marginRight: 8,
+  },
+  familyCountBadge: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+  },
+  familyCountText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  compactAddButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  emptyFamilyContainer: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    paddingHorizontal: 20,
+  },
+  emptyFamilyText: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginTop: 12,
+    textAlign: 'center',
+  },
+  emptyFamilySubtext: {
+    fontSize: 14,
+    marginTop: 8,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   profileContent: {
     alignItems: 'center',
@@ -2321,6 +2737,229 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#FFFFFF',
   },
-});
+
+   // Relationship Picker Modal Styles
+   relationshipPickerOverlay: {
+     flex: 1,
+     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+     justifyContent: 'flex-end',
+   },
+   relationshipPickerContainer: {
+     borderTopLeftRadius: 20,
+     borderTopRightRadius: 20,
+     maxHeight: '80%',
+     paddingBottom: 34,
+   },
+   relationshipPickerHeader: {
+     flexDirection: 'row',
+     justifyContent: 'space-between',
+     alignItems: 'center',
+     paddingHorizontal: 20,
+     paddingVertical: 16,
+     borderBottomWidth: 1,
+   },
+   relationshipPickerTitle: {
+     fontSize: 18,
+     fontWeight: '600',
+   },
+   relationshipPickerCloseButton: {
+     padding: 4,
+   },
+   relationshipPickerScrollView: {
+     paddingHorizontal: 20,
+   },
+   relationshipPickerItem: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     justifyContent: 'space-between',
+     paddingVertical: 12,
+     paddingHorizontal: 16,
+     marginVertical: 4,
+     borderRadius: 12,
+     borderWidth: 1,
+   },
+   relationshipPickerItemContent: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     flex: 1,
+   },
+   relationshipPickerIcon: {
+     width: 40,
+     height: 40,
+     borderRadius: 20,
+     justifyContent: 'center',
+     alignItems: 'center',
+     marginRight: 12,
+   },
+   relationshipPickerTextContainer: {
+     flex: 1,
+   },
+   relationshipPickerItemText: {
+     fontSize: 16,
+     marginBottom: 2,
+   },
+   relationshipPickerItemDescription: {
+     fontSize: 13,
+     lineHeight: 16,
+   },
+
+   // Modern Family Members Grid Styles
+   familyMembersGrid: {
+     flexDirection: 'row',
+     flexWrap: 'wrap',
+     justifyContent: 'space-between',
+     paddingHorizontal: 4,
+   },
+   modernFamilyCard: {
+     borderRadius: 16,
+     marginBottom: 16,
+     shadowColor: '#000',
+     shadowOffset: {
+       width: 0,
+       height: 2,
+     },
+     shadowOpacity: 0.1,
+     shadowRadius: 8,
+     elevation: 4,
+   },
+   modernCardHeader: {
+     flexDirection: 'row',
+     justifyContent: 'space-between',
+     alignItems: 'flex-start',
+     marginBottom: 12,
+   },
+   modernMemberAvatar: {
+     width: 48,
+     height: 48,
+     borderRadius: 24,
+     justifyContent: 'center',
+     alignItems: 'center',
+   },
+   modernMemberInitial: {
+     fontSize: 18,
+     fontWeight: '600',
+   },
+   modernCardActions: {
+     flexDirection: 'row',
+     gap: 8,
+   },
+   modernActionButton: {
+     width: 32,
+     height: 32,
+     borderRadius: 16,
+     justifyContent: 'center',
+     alignItems: 'center',
+   },
+   modernMemberInfo: {
+     marginBottom: 12,
+   },
+   modernMemberName: {
+     fontSize: 16,
+     fontWeight: '600',
+     marginBottom: 4,
+   },
+   modernMemberRelation: {
+     fontSize: 14,
+     marginBottom: 4,
+   },
+   modernMemberPhone: {
+     fontSize: 13,
+     fontWeight: '500',
+   },
+   modernStatusBadge: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     paddingHorizontal: 8,
+     paddingVertical: 4,
+     borderRadius: 12,
+     marginBottom: 8,
+   },
+   modernStatusDot: {
+     width: 6,
+     height: 6,
+     borderRadius: 3,
+     marginRight: 6,
+   },
+   modernStatusText: {
+     fontSize: 12,
+     fontWeight: '500',
+   },
+   emergencyBadge: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     paddingHorizontal: 8,
+     paddingVertical: 4,
+     borderRadius: 12,
+     marginBottom: 8,
+   },
+   emergencyBadgeText: {
+     fontSize: 11,
+     fontWeight: '600',
+     marginLeft: 4,
+   },
+   modernQuickActions: {
+     flexDirection: 'row',
+     justifyContent: 'space-between',
+     gap: 8,
+   },
+   modernQuickActionButton: {
+     flex: 1,
+     flexDirection: 'row',
+     alignItems: 'center',
+     justifyContent: 'center',
+     paddingVertical: 8,
+     borderRadius: 8,
+     gap: 4,
+   },
+   modernQuickActionText: {
+     color: '#FFFFFF',
+     fontSize: 12,
+     fontWeight: '600',
+   },
+   modernAddMemberCard: {
+     borderRadius: 16,
+     marginBottom: 16,
+     borderWidth: 2,
+     borderStyle: 'dashed',
+     justifyContent: 'center',
+     alignItems: 'center',
+     minHeight: 180,
+   },
+   modernAddIcon: {
+     width: 48,
+     height: 48,
+     borderRadius: 24,
+     justifyContent: 'center',
+     alignItems: 'center',
+     marginBottom: 8,
+   },
+   modernAddText: {
+     fontSize: 14,
+     fontWeight: '600',
+     textAlign: 'center',
+   },
+   emptyIconContainer: {
+     width: 80,
+     height: 80,
+     borderRadius: 40,
+     justifyContent: 'center',
+     alignItems: 'center',
+     marginBottom: 16,
+   },
+   emptyAddButton: {
+     flexDirection: 'row',
+     alignItems: 'center',
+     paddingHorizontal: 24,
+     paddingVertical: 12,
+     borderRadius: 12,
+     marginTop: 16,
+     gap: 8,
+   },
+   emptyAddButtonText: {
+     color: '#FFFFFF',
+     fontSize: 16,
+     fontWeight: '600',
+   },
+ });
 
 export default ProfileScreen;

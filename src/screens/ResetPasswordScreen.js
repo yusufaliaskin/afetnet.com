@@ -96,18 +96,18 @@ const ResetPasswordScreen = ({ navigation, route }) => {
         </View>
 
         <View style={styles.content}>
-          <Text style={styles.title}>Set a new password</Text>
+          <Text style={styles.title}>Yeni şifre belirleyin</Text>
           <Text style={styles.subtitle}>
-            Create a new password. Ensure it differs from{' \n'}
-            previous ones for security
+            Yeni bir şifre oluşturun. Güvenlik için{' \n'}
+            öncekilerden farklı olduğundan emin olun
           </Text>
 
           <View style={styles.formContainer}>
-            <Text style={styles.label}>Password</Text>
+            <Text style={styles.label}>Şifre</Text>
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                placeholder="Enter your new password"
+                placeholder="Yeni şifrenizi girin"
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
@@ -126,11 +126,11 @@ const ResetPasswordScreen = ({ navigation, route }) => {
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.label}>Confirm Password</Text>
+            <Text style={styles.label}>Şifre Tekrarı</Text>
             <View style={styles.inputContainer}>
               <TextInput
                 style={styles.input}
-                placeholder="Re-enter password"
+                placeholder="Şifrenizi tekrar girin"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
                 secureTextEntry={!showConfirmPassword}
@@ -155,7 +155,7 @@ const ResetPasswordScreen = ({ navigation, route }) => {
               disabled={loading}
             >
               <Text style={styles.updateButtonText}>
-                {loading ? 'Güncelleniyor...' : 'Update Password'}
+                {loading ? 'Güncelleniyor...' : 'Şifreyi Güncelle'}
               </Text>
             </TouchableOpacity>
           </View>

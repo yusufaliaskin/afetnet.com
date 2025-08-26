@@ -37,8 +37,13 @@ const StatusBar = ({
       paddingTop: Platform.OS === 'ios' ? 0 : RNStatusBar.currentHeight || 0,
     },
     container: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
       backgroundColor: finalBackgroundColor,
       paddingTop: insets.top,
+      zIndex: 1000,
     },
     header: {
       flexDirection: 'row',

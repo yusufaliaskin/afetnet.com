@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,10 @@ import {
   Platform,
   Dimensions,
   Alert,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { auth, validation, supabase } from '../lib/supabase';
 
@@ -25,7 +27,24 @@ const LoginScreen = ({ navigation }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(50));
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -100,130 +119,149 @@ const LoginScreen = ({ navigation }) => {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView 
-        contentContainerStyle={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
+    <View style={styles.container}>
+      <KeyboardAvoidingView 
+        style={styles.keyboardContainer}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        {/* Logo */}
-        <View style={styles.logoContainer}>
-          <View style={styles.logoCircle}>
-            <Ionicons name="refresh" size={32} color="#FFA500" />
-          </View>
-        </View>
-
-        {/* Title */}
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>Login</Text>
-          <Text style={styles.subtitle}>
-            New here? <Text style={styles.signUpLink} onPress={() => navigation.navigate('Register')}>Sign Up</Text> to get started.
-          </Text>
-        </View>
-
-        {/* Form */}
-        <View style={styles.formContainer}>
-          {/* Email Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Email or Phone</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Email or Phone"
-              placeholderTextColor="#666666"
-              value={formData.email}
-              onChangeText={(value) => handleInputChange('email', value)}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-          </View>
-
-          {/* Password Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <View style={styles.passwordContainer}>
-              <TextInput
-                style={styles.passwordInput}
-                placeholder="Enter password here"
-                placeholderTextColor="#666666"
-                value={formData.password}
-                onChangeText={(value) => handleInputChange('password', value)}
-                secureTextEntry={!showPassword}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-              <TouchableOpacity 
-                style={styles.passwordToggle}
-                onPress={() => setShowPassword(!showPassword)}
-              >
-                <Ionicons 
-                  name={showPassword ? "eye-off-outline" : "eye-outline"} 
-                  size={20} 
-                  color="#FFA500"
-                />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Remember Me & Forgot Password */}
-          <View style={styles.optionsContainer}>
-            <TouchableOpacity 
-              style={styles.rememberContainer}
-              onPress={() => setRememberMe(!rememberMe)}
-            >
-              <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-                {rememberMe && (
-                  <Ionicons name="checkmark" size={12} color="#FFFFFF" />
-                )}
-              </View>
-              <Text style={styles.rememberText}>Remember Me</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
-              <Text style={styles.forgotText}>Forget password</Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Login Button */}
-          <TouchableOpacity
-            style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-            onPress={handleLogin}
-            disabled={loading}
+        <ScrollView 
+          contentContainerStyle={styles.scrollContainer}
+          showsVerticalScrollIndicator={false}
+        >
+          <Animated.View 
+            style={[
+              styles.contentContainer,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
           >
-            <Text style={styles.loginButtonText}>
-              {loading ? 'Logging in...' : 'Login'}
-            </Text>
-          </TouchableOpacity>
+            {/* Logo */}
+            <View style={styles.logoContainer}>
+              <View style={styles.logoCircle}>
+                <Ionicons name="leaf" size={40} color="#FFFFFF" />
+              </View>
+            </View>
 
-          {/* Divider */}
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>Or</Text>
-            <View style={styles.dividerLine} />
-          </View>
+            {/* Title */}
+            <View style={styles.titleContainer}>
+              <Text style={styles.title}>Hoş Geldiniz</Text>
+              <Text style={styles.subtitle}>
+                Hesabınıza giriş yapın
+              </Text>
+            </View>
 
-          {/* Social Login Buttons */}
-          <View style={styles.socialContainer}>
-            <TouchableOpacity style={styles.socialButton}>
-              <Ionicons name="logo-google" size={20} color="#4285F4" />
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.socialButton}>
-              <Ionicons name="logo-apple" size={20} color="#000000" />
-            </TouchableOpacity>
-          </View>
+            {/* Form */}
+            <View style={styles.formContainer}>
+              {/* Email Input */}
+              <View style={styles.inputContainer}>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="mail-outline" size={20} color="#FF6B35" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.input}
+                    placeholder="E-posta veya Telefon"
+                    placeholderTextColor="#9E9E9E"
+                    value={formData.email}
+                    onChangeText={(value) => handleInputChange('email', value)}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                </View>
+              </View>
 
-          {/* Sign Up Link */}
-          <View style={styles.signUpContainer}>
-            <Text style={styles.signUpText}>
-              Hesabın Yok mu? <Text style={styles.signUpLink} onPress={() => navigation.navigate('Register')}>Register</Text>
-            </Text>
-          </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+              {/* Password Input */}
+              <View style={styles.inputContainer}>
+                <View style={styles.inputWrapper}>
+                  <Ionicons name="lock-closed-outline" size={20} color="#FF6B35" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.passwordInput}
+                    placeholder="Şifrenizi girin"
+                    placeholderTextColor="#9E9E9E"
+                    value={formData.password}
+                    onChangeText={(value) => handleInputChange('password', value)}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                  />
+                  <TouchableOpacity 
+                    style={styles.passwordToggle}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Ionicons 
+                      name={showPassword ? "eye-off-outline" : "eye-outline"} 
+                      size={20} 
+                      color="#FF6B35"
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Remember Me & Forgot Password */}
+              <View style={styles.optionsContainer}>
+                <TouchableOpacity 
+                  style={styles.rememberContainer}
+                  onPress={() => setRememberMe(!rememberMe)}
+                >
+                  <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                    {rememberMe && (
+                      <Ionicons name="checkmark" size={12} color="#FFFFFF" />
+                    )}
+                  </View>
+                  <Text style={styles.rememberText}>Beni Hatırla</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
+                  <Text style={styles.forgotText}>Şifremi Unuttum</Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Login Button */}
+              <TouchableOpacity
+                style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+                onPress={handleLogin}
+                disabled={loading}
+              >
+                <LinearGradient
+                  colors={loading ? ['#CCCCCC', '#CCCCCC'] : ['#FF6B35', '#FF8A50']}
+                  style={styles.loginButtonGradient}
+                >
+                  <Text style={styles.loginButtonText}>
+                    {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+               {/* Divider */}
+               <View style={styles.divider}>
+                 <View style={styles.dividerLine} />
+                 <Text style={styles.dividerText}>Veya</Text>
+                 <View style={styles.dividerLine} />
+               </View>
+
+               {/* Social Login Buttons */}
+               <View style={styles.socialContainer}>
+                 <TouchableOpacity style={styles.socialButton}>
+                   <Ionicons name="logo-google" size={20} color="#4285F4" />
+                 </TouchableOpacity>
+                 
+                 <TouchableOpacity style={styles.socialButton}>
+                   <Ionicons name="logo-apple" size={20} color="#000000" />
+                 </TouchableOpacity>
+               </View>
+
+               {/* Sign Up Link */}
+               <View style={styles.signUpContainer}>
+                 <Text style={styles.signUpText}>
+                   Hesabın Yok mu? <Text style={styles.signUpLink} onPress={() => navigation.navigate('Register')}>Kayıt Ol</Text>
+                 </Text>
+               </View>
+             </View>
+           </Animated.View>
+         </ScrollView>
+       </KeyboardAvoidingView>
+     </View>
   );
 };
 
@@ -232,25 +270,37 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#FFFFFF',
   },
+  keyboardContainer: {
+    flex: 1,
+  },
   scrollContainer: {
     flexGrow: 1,
     paddingHorizontal: 24,
     paddingTop: 60,
     paddingBottom: 40,
   },
+  contentContainer: {
+    flex: 1,
+  },
   logoContainer: {
     alignItems: 'center',
     marginBottom: 40,
   },
   logoCircle: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#FFF5E6',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#FF6B35',
     justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: '#FFA500',
+    shadowColor: '#FF6B35',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 8,
   },
   titleContainer: {
     alignItems: 'center',
@@ -259,8 +309,9 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 32,
     fontWeight: 'bold',
-    color: '#333333',
+    color: '#1A1A1A',
     marginBottom: 8,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 16,
@@ -269,8 +320,9 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   signUpLink: {
-    color: '#FFA500',
+    color: '#FF6B35',
     fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   formContainer: {
     flex: 1,
@@ -278,39 +330,39 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginBottom: 20,
   },
-  inputLabel: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#333333',
-    marginBottom: 8,
-  },
-  input: {
-    height: 50,
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    fontSize: 16,
-    backgroundColor: '#FFFFFF',
-    color: '#333333',
-  },
-  passwordContainer: {
+  inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    height: 56,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 8,
-    backgroundColor: '#FFFFFF',
-    height: 50,
+    borderColor: '#E9ECEF',
+    shadowColor: '#000000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  inputIcon: {
+    marginRight: 12,
+  },
+  input: {
+    flex: 1,
+    fontSize: 16,
+    color: '#1A1A1A',
   },
   passwordInput: {
     flex: 1,
-    paddingHorizontal: 16,
     fontSize: 16,
-    color: '#333333',
+    color: '#1A1A1A',
   },
   passwordToggle: {
-    paddingHorizontal: 16,
+    paddingLeft: 12,
   },
   optionsContainer: {
     flexDirection: 'row',
@@ -323,18 +375,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   checkbox: {
-    width: 16,
-    height: 16,
-    borderRadius: 3,
-    borderWidth: 1,
-    borderColor: '#FFA500',
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 2,
+    borderColor: '#FF6B35',
     backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 8,
   },
   checkboxChecked: {
-    backgroundColor: '#FFA500',
+    backgroundColor: '#FF6B35',
   },
   rememberText: {
     fontSize: 14,
@@ -342,27 +394,28 @@ const styles = StyleSheet.create({
   },
   forgotText: {
     fontSize: 14,
-    color: '#FFA500',
+    color: '#FF6B35',
     fontWeight: '500',
+    textDecorationLine: 'underline',
   },
   loginButton: {
-    height: 50,
-    backgroundColor: '#FFA500',
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+    height: 56,
+    borderRadius: 12,
     marginBottom: 32,
-    shadowColor: '#FFA500',
+    shadowColor: '#000000',
     shadowOffset: {
       width: 0,
       height: 4,
     },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 8,
   },
-  loginButtonDisabled: {
-    backgroundColor: '#CCCCCC',
+  loginButtonGradient: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 12,
   },
   loginButtonText: {
     fontSize: 16,
@@ -377,7 +430,7 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#E0E0E0',
+    backgroundColor: '#E9ECEF',
   },
   dividerText: {
     fontSize: 14,

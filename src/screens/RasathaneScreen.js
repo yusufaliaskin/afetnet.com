@@ -212,16 +212,6 @@ const RasathaneScreen = () => {
     startEntranceAnimations();
   }, []);
 
-  // Sayfa odaklandığında veri yenile
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      console.log('Sayfa odaklandı, veri güncelleniyor...');
-      loadEarthquakeData(false, true);
-    });
-
-    return unsubscribe;
-  }, [navigation]);
-
   // Arama paneli animasyonu
   useEffect(() => {
     if (isSearchPanelOpen) {

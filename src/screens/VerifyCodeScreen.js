@@ -93,10 +93,10 @@ const VerifyCodeScreen = ({ navigation, route }) => {
         </View>
 
         <View style={styles.content}>
-          <Text style={styles.title}>Check your email</Text>
+          <Text style={styles.title}>E-postanızı kontrol edin</Text>
           <Text style={styles.subtitle}>
-            We sent a reset link to {email}{' \n'}
-            enter 5 digit code that mentioned in the email
+            {email} adresine sıfırlama bağlantısı gönderdik{' \n'}
+            E-postada belirtilen 5 haneli kodu girin
           </Text>
 
           <View style={styles.codeContainer}>
@@ -121,18 +121,18 @@ const VerifyCodeScreen = ({ navigation, route }) => {
             disabled={loading}
           >
             <Text style={styles.verifyButtonText}>
-              {loading ? 'Doğrulanıyor...' : 'Verify Code'}
+              {loading ? 'Doğrulanıyor...' : 'Kodu Doğrula'}
             </Text>
           </TouchableOpacity>
 
           <View style={styles.resendContainer}>
-            <Text style={styles.resendText}>Haven't got the email yet? </Text>
+            <Text style={styles.resendText}>Henüz e-posta almadınız mı? </Text>
             <TouchableOpacity
               onPress={handleResendEmail}
               disabled={resendLoading}
             >
               <Text style={[styles.resendLink, resendLoading && styles.disabledText]}>
-                {resendLoading ? 'Gönderiliyor...' : 'Resend email'}
+                {resendLoading ? 'Gönderiliyor...' : 'E-postayı tekrar gönder'}
               </Text>
             </TouchableOpacity>
           </View>

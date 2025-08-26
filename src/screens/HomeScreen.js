@@ -195,6 +195,7 @@ const HomeScreen = ({ navigation }) => {
     container: {
       flex: 1,
       backgroundColor: '#000000',
+      paddingTop: insets.top + 75, // StatusBar yüksekliği için padding
     },
 
     // Categories styles removed for cleaner design

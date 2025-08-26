@@ -212,18 +212,6 @@ const MapScreen = () => {
   useEffect(() => {
     getUserLocation();
     fetchEarthquakes();
-
-    // Kandilli API için daha sık güncelleme (30 saniye)
-    // Kandilli Rasathanesi verileri daha güncel olduğu için
-    const interval = setInterval(() => {
-      console.log('Otomatik veri güncelleme başlatılıyor...');
-      fetchEarthquakes();
-    }, 30000); // 30 saniye
-
-    return () => {
-      console.log('Otomatik güncelleme temizleniyor...');
-      clearInterval(interval);
-    };
   }, []);
 
   // Deprem büyüklüğüne göre marker boyutu
