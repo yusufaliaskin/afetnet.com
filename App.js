@@ -1,4 +1,5 @@
 // Import polyfills first
+import './src/polyfills';
 
 import React, { useState, useEffect } from 'react';
 import { View, AppRegistry } from 'react-native';
